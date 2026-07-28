@@ -1,0 +1,16 @@
+{
+  "name": "RIoT2Shared",
+  "version": "0.1.0",
+  "description": "Shared Wi-Fi/MQTT/orchestrator/BLE/peripheral framework code for RIoT2 Ard node firmwares (M5Dial.Node, M5Core2.Node).",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "build": {
+    "includeDir": "include",
+    "srcDir": "src"
+  },
+  "dependencies": {
+    "knolleary/PubSubClient": "^2.8",
+    "bblanchon/ArduinoJson": "^7.1.0",
+    "h2zero/NimBLE-Arduino": "^2.2.1"
+  }
+}
