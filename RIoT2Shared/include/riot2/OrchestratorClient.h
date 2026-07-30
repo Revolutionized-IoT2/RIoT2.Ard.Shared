@@ -26,11 +26,21 @@ class OrchestratorClient {
 public:
     using ConfigurationCallback = std::function<void(const NodeConfiguration&)>;
 
+    // enableCache=false disables both reading (loadCached()) and writing
+    // (the ConfigCache::save() call inside requestConfiguration()) of the
+    // on-flash configuration cache entirely - for nodes that would rather
+    // always show nothing until a live fetch succeeds than risk running
+    // from a stale offline copy (see RIoT2.Ard.M5Core2.Node/src/main.cpp).
+    // Defaults to true, preserving the original loadCached()-on-boot
+    // behavior for existing consumers (e.g. RIoT2.Ard.M5Dial.Node).
+    explicit OrchestratorClient(bool enableCache = true) : _cacheEnabled(enableCache) {}
+
     void onConfigurationUpdated(ConfigurationCallback callback) { _callback = callback; }
 
     const NodeConfiguration& current() const { return _current; }
 
-    // Mounts ConfigCache and, if a previously-saved configuration exists,
+    // No-op (returns false) when constructed with enableCache=false. Mounts
+    // ConfigCache and, if a previously-saved configuration exists,
     // parses it via the same parseConfiguration() path as a live fetch,
     // updates current(), and invokes the configuration callback - all
     // without any network access. Lets the UI rebuild from the last-known
@@ -44,13 +54,29 @@ public:
     // false (and logs) on any HTTP/JSON error, leaving the previous
     // configuration untouched. On success, updates current() and invokes the
     // configuration callback.
+    //
+    // If the fetched body is byte-for-byte identical to the last body that
+    // was actually applied (via this method or loadCached()), the parse and
+    // configuration callback are both skipped (still returns true, and still
+    // refreshes the on-flash cache) - the orchestrator can re-deliver the
+    // same configuration more than once (e.g. a retained MQTT message
+    // re-triggering this on every reconnect), and re-running the callback
+    // means the app fully rebuilds its UI (ViewManager::rebuild() tearing
+    // down and recreating every view's LVGL widgets) for no actual change.
+    // That rebuild is expensive enough to matter: on a 13-view
+    // configuration, doing it twice back-to-back (once from loadCached(),
+    // once from an unchanged live fetch) measured free heap dropping from
+    // ~25KB to ~6KB, right at the edge of allocation failures elsewhere
+    // (BLE/TLS/LVGL).
     bool requestConfiguration(const String& apiBaseUrl, const String& nodeId);
 
 private:
     static constexpr uint32_t kHttpTimeoutMs = 8000;
 
+    bool _cacheEnabled;
     ConfigurationCallback _callback;
     NodeConfiguration _current;
+    String _lastAppliedJson;
 
     bool parseConfiguration(const String& json, NodeConfiguration& out);
 };

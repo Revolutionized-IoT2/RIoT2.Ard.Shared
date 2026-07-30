@@ -16,9 +16,14 @@ void WifiConnection::startConnection() {
     // ESP32's default WiFi modem-sleep power saving periodically pauses the
     // radio and can introduce brief scheduling/interrupt latency spikes -
     // enough, on some boards, to noticeably affect input responsiveness.
-    // Disable it: these nodes are USB/battery-powered hardware where
-    // responsiveness matters far more than the small extra power draw.
-    WiFi.setSleep(false);
+    // Disabled by default (see _modemSleepEnabled): these nodes are USB/
+    // battery-powered hardware where responsiveness matters far more than
+    // the small extra power draw. BUT it MUST stay enabled whenever a
+    // Bluetooth/BLE radio is also active on this node - see
+    // setModemSleepEnabled()'s doc comment for why disabling it then is a
+    // fatal (aborts/reboots) ESP-IDF coexistence requirement, not just a
+    // performance tradeoff.
+    WiFi.setSleep(_modemSleepEnabled);
     WiFi.begin(_ssid.c_str(), _password.c_str());
     _state = WifiState::Connecting;
     _lastAttemptMs = millis();

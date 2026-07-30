@@ -24,6 +24,10 @@ String buildConfigurationUrl(const String& apiBaseUrl, const String& nodeId) {
 constexpr uint32_t OrchestratorClient::kHttpTimeoutMs;
 
 bool OrchestratorClient::loadCached() {
+    if (!_cacheEnabled) {
+        return false;
+    }
+
     ConfigCache::begin();
 
     String json;
@@ -38,6 +42,7 @@ bool OrchestratorClient::loadCached() {
     }
 
     _current = parsed;
+    _lastAppliedJson = json;
     Serial.printf("[Orchestrator] Loaded cached configuration from flash: %u device configuration(s)\n",
                   static_cast<unsigned>(_current.deviceConfigurations.size()));
 
@@ -92,6 +97,22 @@ bool OrchestratorClient::requestConfiguration(const String& apiBaseUrl, const St
     String body = http.getString();
     http.end();
 
+    if (_cacheEnabled) {
+        ConfigCache::save(body);
+    }
+
+    // See the doc comment on requestConfiguration() in the header - the
+    // orchestrator can re-deliver the exact same configuration more than
+    // once (e.g. a retained MQTT configuration message re-triggering this
+    // on every reconnect), and re-applying it means a full, expensive
+    // ViewManager rebuild (tear down + recreate every view's LVGL widgets)
+    // for no actual change - measured to spike free heap from ~25KB down to
+    // ~6KB on a 13-view configuration when it happened twice back-to-back.
+    if (body == _lastAppliedJson) {
+        Serial.println("[Orchestrator] Fetched configuration is unchanged, skipping rebuild");
+        return true;
+    }
+
     NodeConfiguration parsed;
     if (!parseConfiguration(body, parsed)) {
         Serial.println("[Orchestrator] Failed to parse configuration JSON");
@@ -99,10 +120,9 @@ bool OrchestratorClient::requestConfiguration(const String& apiBaseUrl, const St
     }
 
     _current = parsed;
+    _lastAppliedJson = body;
     Serial.printf("[Orchestrator] Configuration updated: %u device configuration(s)\n",
                   static_cast<unsigned>(_current.deviceConfigurations.size()));
-
-    ConfigCache::save(body);
 
     if (_callback) {
         _callback(_current);
