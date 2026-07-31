@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+#include <riot2/DeviceConfiguration.h>
+
 namespace riot2 {
 
 // Generic registry mapping a DeviceConfiguration's classFullName to a
@@ -19,14 +21,26 @@ template <typename T>
 class Factory {
 public:
     using Creator = std::function<std::unique_ptr<T>()>;
+    // Returns an example DeviceConfiguration illustrating this
+    // classFullName's expected commandTemplates/reportTemplates/
+    // deviceParameters shape, for the /api/device/configuration/templates
+    // endpoint (see ConfigTemplateServer.h) - the on-device equivalent of
+    // RIoT2.Core.Interfaces.IDeviceWithConfiguration.GetConfigurationTemplate().
+    using TemplateProvider = std::function<DeviceConfiguration()>;
 
     static Factory<T>& instance() {
         static Factory<T> factory;
         return factory;
     }
 
-    void registerCreator(const String& classFullName, Creator creator) {
+    // templateProvider is optional: entries with none simply contribute no
+    // template to configurationTemplates() (e.g. a classFullName not meant
+    // to be user-configurable via that endpoint).
+    void registerCreator(const String& classFullName, Creator creator, TemplateProvider templateProvider = nullptr) {
         _creators.push_back({classFullName, std::move(creator)});
+        if (templateProvider) {
+            _templateProviders.push_back(std::move(templateProvider));
+        }
     }
 
     // True if a T is registered for classFullName - lets other systems check
@@ -50,8 +64,20 @@ public:
         return nullptr;
     }
 
+    // One DeviceConfiguration template per registered classFullName that
+    // supplied a templateProvider, in registration order.
+    std::vector<DeviceConfiguration> configurationTemplates() const {
+        std::vector<DeviceConfiguration> templates;
+        templates.reserve(_templateProviders.size());
+        for (const auto& provider : _templateProviders) {
+            templates.push_back(provider());
+        }
+        return templates;
+    }
+
 private:
     std::vector<std::pair<String, Creator>> _creators;
+    std::vector<TemplateProvider> _templateProviders;
 };
 
 }  // namespace riot2

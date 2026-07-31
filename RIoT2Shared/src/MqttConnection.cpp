@@ -118,6 +118,16 @@ void MqttConnection::publishOnline() {
     doc["isOnline"] = true;
     doc["nodeType"] = 1;  // RIoT2.Core.Enums.NodeType.Device
 
+    // Lets the orchestrator reach this node's HTTP API (e.g.
+    // /api/device/configuration/templates, served by ConfigTemplateServer)
+    // without needing it configured separately - read fresh here (rather
+    // than cached at begin()) so it stays correct across a DHCP lease
+    // renewal/reconnect. Omitted if Wi-Fi doesn't have an IP yet.
+    IPAddress localIp = WiFi.localIP();
+    if (localIp != IPAddress(0, 0, 0, 0)) {
+        doc["nodeBaseUrl"] = "http://" + localIp.toString();
+    }
+
     // _manifestJson is this build's manifest.json, embedded as a string
     // constant by the consuming project at build time (see
     // generate_manifest.py) and handed in via setManifestJson(); parse it
@@ -133,8 +143,8 @@ void MqttConnection::publishOnline() {
     }
 
     // Larger than the other fixed buffers here since this payload now
-    // includes the nested manifest object.
-    char payload[384];
+    // includes the nested manifest object plus nodeBaseUrl.
+    char payload[416];
     size_t len = serializeJson(doc, payload, sizeof(payload));
     _client.publish(Topics::online(_config.id).c_str(), reinterpret_cast<const uint8_t*>(payload), len, true);
 }
