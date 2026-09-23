@@ -40,7 +40,7 @@ def declaration(path):
     )
 
 
-def compile_and_run(name, source):
+def compile_and_run(name, source, include_dirs=()):
     compiler = os.environ.get("CXX") or shutil.which("cl") or shutil.which("c++")
     if not compiler:
         raise RuntimeError("Host C++ compiler missing: use a developer shell or set CXX")
@@ -52,9 +52,11 @@ def compile_and_run(name, source):
         command = [compiler, "/nologo", "/EHsc", "/std:c++14",
                    str(source_path), "/Fe:" + str(executable),
                    "/Fo:" + str(BUILD / (name + ".obj"))]
+        command.extend("/I" + str(path) for path in include_dirs)
     else:
         command = [compiler, "-std=c++14", "-Wall", "-Wextra",
                    str(source_path), "-o", str(executable)]
+        command.extend("-I" + str(path) for path in include_dirs)
     for invocation in (command, [str(executable)]):
         result = subprocess.run(invocation, cwd=BUILD, timeout=60,
                                 capture_output=True, text=True)

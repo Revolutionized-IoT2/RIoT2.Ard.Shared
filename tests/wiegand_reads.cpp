@@ -22,6 +22,7 @@ USI_TWI_S TinyWireS;
 volatile uint64_t buffer;
 volatile uint8_t counter;
 volatile bool hasNewData;
+volatile uint32_t completedCode;
 #define WGD_OUT_REG PORTB
 #define WGD_IRQ 1
 #define _BV(bit) (1 << (bit))
@@ -103,14 +104,15 @@ int main() {
 
     // Exercise the unchanged sketch callback: MSB first, then zeros on the next read.
     usi_onRequestPtr = requestEvent;
-    buffer = 0x123456;
-    counter = 26;
+    completedCode = 0x123456;
+    buffer = 0x1; // An independently arriving frame must survive reading the pending code.
+    counter = 1;
     hasNewData = true;
     PORTB |= _BV(WGD_IRQ);
     startRead();
     bytes = readBytes(3);
     assert((bytes == std::vector<uint8_t>{0x12, 0x34, 0x56}));
-    assert(!hasNewData && buffer == 0 && counter == 0 && !(PORTB & _BV(WGD_IRQ)));
+    assert(!hasNewData && completedCode == 0 && buffer == 1 && counter == 1 && !(PORTB & _BV(WGD_IRQ)));
     startRead();
     assert((readBytes(3) == std::vector<uint8_t>{0, 0, 0}));
 }

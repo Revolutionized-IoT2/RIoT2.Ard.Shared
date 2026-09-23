@@ -40,6 +40,12 @@ void GpioPeripheral::begin(const DeviceConfiguration& config) {
         }
 
         if (slot.isOutput) {
+            if (!_pinMap.canOutput(slot.address)) {
+                Serial.printf("[GpioPeripheral] Grove address \"%s\" is input-only, ignoring output\n",
+                              slot.address.c_str());
+                slot.pin = -1;
+                continue;
+            }
             pinMode(slot.pin, OUTPUT);
             slot.lastState = false;
             digitalWrite(slot.pin, _invert ? HIGH : LOW);

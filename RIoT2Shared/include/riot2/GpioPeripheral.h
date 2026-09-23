@@ -31,6 +31,15 @@ struct GpioPinMap {
     int8_t a2 = -1;
     int8_t b1 = -1;
     int8_t b2 = -1;
+    uint8_t outputMask = 0x0F;  // A1/A2/B1/B2, least-significant bit first.
+
+    bool canOutput(const String& address) const {
+        if (address == "A1") return (outputMask & 0x01) != 0;
+        if (address == "A2") return (outputMask & 0x02) != 0;
+        if (address == "B1") return (outputMask & 0x04) != 0;
+        if (address == "B2") return (outputMask & 0x08) != 0;
+        return false;
+    }
 
     int8_t resolve(const String& address) const {
         if (address == "A1") return a1;

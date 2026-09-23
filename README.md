@@ -67,6 +67,7 @@ Deterministic host regressions for the sibling firmware projects are available:
 
 ```powershell
 python tests\test_firmware_p1.py
+python tests\test_firmware_p2.py
 ```
 
 Run from a Visual Studio C++ developer shell on Windows, or provide a native
@@ -76,8 +77,35 @@ The tests compile production function bodies/class declarations against minimal
 timer and Wi-Fi fakes; they verify button timer ownership and BLE reconnect policy.
 The Wiegand regression also compiles the complete USI driver against fake AVR
 registers to exercise short reads, aborts, TX overflow status and normal responses.
+P2 regressions cover independent Wiegand acquisition, GPIO capabilities, exact MQTT
+packet-size boundaries, configuration retry deadlines and both boards' BLE snapshot restore.
+The MQTT test uses ArduinoJson headers already present in either board's `.pio\libdeps`
+directory; it fails with a clear message if they are absent and never downloads them.
 Generated files stay in `tests\.host-build` and are removed after the run.
 These checks do not replace board builds or real LVGL/radio integration tests.
+
+### Bounded firmware policies
+
+- **GPIO:** `GpioPinMap::outputMask` describes output support for A1/A2/B1/B2.
+  All four are enabled by default; Core2 excludes input-only B2. Unsupported output
+  slots are logged and ignored. Core2's generated relay template selects B1/GPIO26.
+- **MQTT:** online/offline/report JSON is serialized completely or rejected with a
+  diagnostic. The existing 512-byte packet limit is retained (or the smaller runtime
+  client buffer); five header bytes, two topic-length bytes and the topic itself are
+  reserved. A 54-byte topic therefore permits exactly 451 JSON bytes, not 452.
+  Oversized messages are not fragmented or queued, and publish failures are logged.
+  Diagnostic reason codes: 1=document allocation overflow, 2=packet too large,
+  3=serialization incomplete, 4=transport publish failed. Payloads are not logged.
+- **Configuration:** each new MQTT configuration notification replaces any pending URL
+  and schedules an immediate main-loop attempt. Failures retry after 1, 2, 4, 8, 16,
+  then 30 seconds, staying at 30 seconds until success or a replacement notification.
+  No attempts run while Wi-Fi is disconnected; retry timing uses rollover-safe elapsed
+  milliseconds measured after a failed request completes. Success clears the request.
+  HTTP requests remain synchronous; the retry scheduler does not eliminate their latency.
+- **BLE:** rebuilt consumers receive a main-loop snapshot of devices seen within the
+  last 60 seconds. Snapshot restoration updates the UI silently rather than replaying
+  `deviceFound` reports and potentially retriggering automations. Genuine new discoveries,
+  advertisements and subsequent device-loss reports keep their existing behavior.
 
 Because two node projects depend on this library, **any change here must be build-verified in
 both consumers** before it's considered done:

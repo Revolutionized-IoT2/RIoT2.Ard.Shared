@@ -57,6 +57,9 @@ public:
 
     bool isActive() const { return _began; }
 
+    // Main-loop-only snapshot for newly rebuilt consumers; does not emit discovery events.
+    std::vector<BleDeviceInfo> snapshot() const;
+
     void onDeviceDiscovered(DeviceEventCallback callback) { _onDiscovered = std::move(callback); }
     void onDeviceLost(DeviceLostCallback callback) { _onLost = std::move(callback); }
     void onAdvertisement(AdvertisementCallback callback) { _onAdvertisement = std::move(callback); }

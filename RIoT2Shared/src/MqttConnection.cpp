@@ -6,10 +6,20 @@
 
 #include <riot2/TlsRootCa.h>
 #include <riot2/Topics.h>
+#include <riot2/MqttJson.h>
 
 MqttConnection* MqttConnection::_instance = nullptr;
 
 namespace {
+
+void publishDocument(PubSubClient& client, const String& topic, const JsonDocument& doc, bool retained) {
+    auto result = riot2::publishJson<MQTT_MAX_PACKET_SIZE>(client, topic.c_str(), doc, retained);
+    if (result != riot2::JsonPublishResult::Published) {
+        Serial.printf("[MQTT] JSON publish failed (reason=%u, bytes=%u, packetBuffer=%u)\n",
+                      static_cast<unsigned>(result), static_cast<unsigned>(measureJson(doc)),
+                      static_cast<unsigned>(client.getBufferSize()));
+    }
+}
 
 // Splits "[scheme://]host[:port]" into host/port, defaulting the port to
 // defaultPort when the URL doesn't specify one.
@@ -142,11 +152,7 @@ void MqttConnection::publishOnline() {
         }
     }
 
-    // Larger than the other fixed buffers here since this payload now
-    // includes the nested manifest object plus nodeBaseUrl.
-    char payload[416];
-    size_t len = serializeJson(doc, payload, sizeof(payload));
-    _client.publish(Topics::online(_config.id).c_str(), reinterpret_cast<const uint8_t*>(payload), len, true);
+    publishDocument(_client, Topics::online(_config.id), doc, true);
 }
 
 void MqttConnection::publishOfflineAndDisconnect() {
@@ -156,9 +162,7 @@ void MqttConnection::publishOfflineAndDisconnect() {
 
     JsonDocument doc;
     doc["isOnline"] = false;
-    char payload[32];
-    size_t len = serializeJson(doc, payload, sizeof(payload));
-    _client.publish(Topics::online(_config.id).c_str(), reinterpret_cast<const uint8_t*>(payload), len, true);
+    publishDocument(_client, Topics::online(_config.id), doc, true);
 
     _client.disconnect();
     _state = MqttState::Disconnected;
@@ -183,9 +187,7 @@ void MqttConnection::publishReport(const Report& report) {
         doc["value"] = report.value;
     }
 
-    char payload[256];
-    size_t len = serializeJson(doc, payload, sizeof(payload));
-    _client.publish(Topics::report(_config.id).c_str(), reinterpret_cast<const uint8_t*>(payload), len, false);
+    publishDocument(_client, Topics::report(_config.id), doc, false);
 }
 
 void MqttConnection::loop() {

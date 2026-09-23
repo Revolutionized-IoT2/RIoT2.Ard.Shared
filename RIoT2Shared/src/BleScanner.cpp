@@ -125,6 +125,15 @@ BleDeviceInfo* BleScanner::findDevice(const String& address) {
     return nullptr;
 }
 
+std::vector<BleDeviceInfo> BleScanner::snapshot() const {
+    std::vector<BleDeviceInfo> result;
+    const unsigned long now = millis();
+    for (const auto& device : _devices) {
+        if (now - device.lastSeenMs < kDeviceTimeoutMs) result.push_back(device);
+    }
+    return result;
+}
+
 void BleScanner::loop() {
     if (!_began) {
         return;
