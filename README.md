@@ -63,6 +63,22 @@ the relative path in `lib_extra_dirs` to resolve.
 
 ## Regression gate
 
+Deterministic host regressions for the sibling firmware projects are available:
+
+```powershell
+python tests\test_firmware_p1.py
+```
+
+Run from a Visual Studio C++ developer shell on Windows, or provide a native
+C++14 compiler using `CXX` (defaults to `cl` or `c++`). Python uses only its standard
+library. All four firmware repositories should be checked out as siblings.
+The tests compile production function bodies/class declarations against minimal
+timer and Wi-Fi fakes; they verify button timer ownership and BLE reconnect policy.
+The Wiegand regression also compiles the complete USI driver against fake AVR
+registers to exercise short reads, aborts, TX overflow status and normal responses.
+Generated files stay in `tests\.host-build` and are removed after the run.
+These checks do not replace board builds or real LVGL/radio integration tests.
+
 Because two node projects depend on this library, **any change here must be build-verified in
 both consumers** before it's considered done:
 
