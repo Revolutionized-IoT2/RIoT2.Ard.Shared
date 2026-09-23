@@ -68,6 +68,7 @@ Deterministic host regressions for the sibling firmware projects are available:
 ```powershell
 python tests\test_firmware_p1.py
 python tests\test_firmware_p2.py
+python tests\test_firmware_architecture.py
 ```
 
 Run from a Visual Studio C++ developer shell on Windows, or provide a native
@@ -79,6 +80,10 @@ The Wiegand regression also compiles the complete USI driver against fake AVR
 registers to exercise short reads, aborts, TX overflow status and normal responses.
 P2 regressions cover independent Wiegand acquisition, GPIO capabilities, exact MQTT
 packet-size boundaries, configuration retry deadlines and both boards' BLE snapshot restore.
+Architecture regressions compile the Dial timer and view-manager lifecycle methods:
+hidden/popup/idle completion, report-once behavior, render-only presentation,
+cancel/rebuild safety, concurrent timers, and countdown/ring rollover. Main-loop
+wiring is also checked so diagnostics cannot bypass background view execution.
 The MQTT test uses ArduinoJson headers already present in either board's `.pio\libdeps`
 directory; it fails with a clear message if they are absent and never downloads them.
 Generated files stay in `tests\.host-build` and are removed after the run.
