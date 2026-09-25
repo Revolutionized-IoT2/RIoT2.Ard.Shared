@@ -32,7 +32,7 @@ private:
     WebServer _server{80};
     String _apSsid;
     IPAddress _apIp;
-    unsigned long _restartAtMs = 0;
+    unsigned long _restartRequestedAtMs = 0;
 
     void handleRoot();
     void handleSave();

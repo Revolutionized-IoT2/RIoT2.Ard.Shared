@@ -1,7 +1,7 @@
 #pragma once
 
-// Root CA (PEM, X.509) used to validate the orchestrator's HTTPS certificate
-// and, when NodeConfig::mqttUseTls is set, the MQTT broker's TLS
+// Root CA (PEM, X.509) used to validate the orchestrator's HTTPS certificate,
+// HTTPS OTA firmware URLs and, when NodeConfig::mqttUseTls is set, the MQTT broker's TLS
 // certificate. Overridable at build time via
 // -D'RIOT2_ROOT_CA_PEM="-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"'
 // so each deployment can pin its own CA without editing source. Returns an

@@ -23,6 +23,8 @@ enum class MqttState {
 // publishes the NodeOnlineMessage on (re)connect, and subscribes to
 // riot2/orchestrator/online + riot2/node/{id}/configuration +
 // riot2/node/{id}/command.
+// Invalid broker URLs (empty host, empty/non-numeric/out-of-range explicit
+// port) are logged and leave MQTT disconnected.
 //
 // When NodeConfig::mqttUseTls is set, connects via WiFiClientSecure
 // (defaulting to port 8883 instead of 1883 if mqttServerUrl doesn't specify
@@ -85,6 +87,7 @@ private:
     // that outlives begin().
     String _brokerHost;
     uint16_t _brokerPort = 1883;
+    bool _serverConfigured = false;
     MqttState _state = MqttState::Disconnected;
     unsigned long _lastAttemptMs = 0;
     unsigned long _backoffMs = kInitialBackoffMs;

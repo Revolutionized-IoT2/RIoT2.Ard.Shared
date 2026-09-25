@@ -41,11 +41,11 @@ the relative path in `lib_extra_dirs` to resolve.
 | `NodeConfig.h/.cpp` | NVS-backed (`Preferences`) node identity/credentials struct: `id`, `name`, Wi-Fi/MQTT credentials, `mqttUseTls`, `vibrateEnabled`. |
 | `WifiConnection.h/.cpp` | Wi-Fi connect with retry/backoff and status reporting. |
 | `MqttConnection.h/.cpp` | MQTT connect/reconnect, LWT, online/offline announcements, command/report pub-sub; switches to `WiFiClientSecure` + port 8883 when `NodeConfig::mqttUseTls` is set. |
-| `OrchestratorClient.h/.cpp` | HTTPS fetch of a node's device configuration from the orchestrator, with root-CA pinning (see `TlsRootCa`); also handles caching (see `ConfigCache`) and reconfiguration pushes. |
-| `TlsRootCa.h/.cpp` | Root CA (PEM) used to validate both the orchestrator's HTTPS certificate and (when enabled) the MQTT broker's TLS certificate; overridable per deployment via `-DRIOT2_ROOT_CA_PEM=...`. |
+| `OrchestratorClient.h/.cpp` | HTTP(S) fetch of a node's device configuration from the orchestrator, with root-CA validation for HTTPS (see `TlsRootCa`); also handles optional caching (see `ConfigCache`) and reconfiguration pushes. |
+| `TlsRootCa.h/.cpp` | Root CA (PEM) used to validate the orchestrator's HTTPS certificate, HTTPS OTA URLs, and (when enabled) the MQTT broker's TLS certificate; overridable per deployment via `-DRIOT2_ROOT_CA_PEM=...`. |
 | `ConfigCache.h/.cpp` | Persists the last-fetched device configuration JSON to LittleFS so a node can rebuild its UI offline within seconds of power-on, before Wi-Fi/MQTT/orchestrator are even reachable. |
-| `ProvisioningPortal.h/.cpp` | First-boot captive-portal web form (Wi-Fi/MQTT/TLS/vibration settings) shown when no valid `NodeConfig` is stored; each project supplies its own display title. |
-| `OtaUpdater.h/.cpp` | Downloads and flashes a firmware `.bin` from a URL (triggered by the `system.ota` command id), reboots on success. |
+| `ProvisioningPortal.h/.cpp` | First-boot open captive-portal AP + HTTP form (Wi-Fi/MQTT/TLS/vibration settings) shown when no valid `NodeConfig` is stored; consuming projects decide what to show on their local display while it is running. |
+| `OtaUpdater.h/.cpp` | Downloads and flashes a firmware `.bin` from an HTTP(S) URL (triggered by the `system.ota` command id), validates HTTPS with `TlsRootCa` when configured, and reboots on success. |
 | `BleScanner.h/.cpp`, `BleTypes.h` | Continuous, non-blocking BLE advertisement scan (`NimBLE-Arduino`), fanned out to consumers via callbacks; only started once a project confirms it has a BLE-consuming view. |
 | `GpioPeripheral.h/.cpp`, `IPeripheral.h` | Generic digital-I/O peripheral driving up to 4 pins via a per-project `PinMap`, addressed the same way a `ButtonView`/`ToggleView` addresses its commands/reports. |
 | `PeripheralFactory.h`, `PeripheralManager.h/.cpp`, `Factory.h` | Registry/dispatch for peripherals (and, via the shared `riot2::Factory<T>` template, the pattern each project's own `ViewFactory` reuses) keyed by `classFullName`. |
@@ -101,12 +101,17 @@ These checks do not replace board builds or real LVGL/radio integration tests.
   Oversized messages are not fragmented or queued, and publish failures are logged.
   Diagnostic reason codes: 1=document allocation overflow, 2=packet too large,
   3=serialization incomplete, 4=transport publish failed. Payloads are not logged.
+  Broker URLs accept `[scheme://]host[:port]`; an explicit port must be numeric
+  and in the range 1-65535. Invalid URLs are logged and MQTT remains disconnected
+  instead of silently connecting to port 0 or a truncated port.
 - **Configuration:** each new MQTT configuration notification replaces any pending URL
   and schedules an immediate main-loop attempt. Failures retry after 1, 2, 4, 8, 16,
   then 30 seconds, staying at 30 seconds until success or a replacement notification.
   No attempts run while Wi-Fi is disconnected; retry timing uses rollover-safe elapsed
   milliseconds measured after a failed request completes. Success clears the request.
   HTTP requests remain synchronous; the retry scheduler does not eliminate their latency.
+  Configuration response bodies are capped at 32 KiB: `Content-Length` above that is
+  rejected before reading, and streamed responses are aborted if they exceed the cap.
 - **BLE:** rebuilt consumers receive a main-loop snapshot of devices seen within the
   last 60 seconds. Snapshot restoration updates the UI silently rather than replaying
   `deviceFound` reports and potentially retriggering automations. Genuine new discoveries,
@@ -116,6 +121,8 @@ Because two node projects depend on this library, **any change here must be buil
 both consumers** before it's considered done:
 
 ```powershell
-cd ..\RIoT2.Ard.M5Dial.Node  && pio run
-cd ..\RIoT2.Ard.M5Core2.Node && pio run
+Set-Location ..\RIoT2.Ard.M5Dial.Node
+pio run
+Set-Location ..\RIoT2.Ard.M5Core2.Node
+pio run
 ```

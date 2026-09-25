@@ -61,7 +61,7 @@ void ProvisioningPortal::loop() {
     _dnsServer.processNextRequest();
     _server.handleClient();
 
-    if (_restartAtMs != 0 && millis() >= _restartAtMs) {
+    if (_restartRequestedAtMs != 0 && (millis() - _restartRequestedAtMs) >= kRestartDelayMs) {
         ESP.restart();
     }
 }
@@ -138,7 +138,7 @@ void ProvisioningPortal::handleSave() {
     _server.send(200, "text/html", html);
 
     Serial.println("[Provisioning] Config saved, restarting shortly...");
-    _restartAtMs = millis() + kRestartDelayMs;
+    _restartRequestedAtMs = millis();
 }
 
 void ProvisioningPortal::handleNotFound() {

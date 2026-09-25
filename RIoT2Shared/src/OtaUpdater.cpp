@@ -4,6 +4,8 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 
+#include <riot2/TlsRootCa.h>
+
 bool OtaUpdater::performUpdate(const String& url) {
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("[OTA] Wi-Fi not connected, aborting update");
@@ -18,7 +20,15 @@ bool OtaUpdater::performUpdate(const String& url) {
     WiFiClient plainClient;
     HTTPUpdateResult result;
     if (url.startsWith("https://")) {
-        secureClient.setInsecure();
+        const char* pem = riot2::rootCaPem();
+        if (pem[0] != '\0') {
+            secureClient.setCACert(pem);
+        } else {
+            Serial.println(
+                "[OTA] WARNING: no root CA configured (RIOT2_ROOT_CA_PEM), HTTPS certificate will NOT be "
+                "validated");
+            secureClient.setInsecure();
+        }
         result = httpUpdate.update(secureClient, url);
     } else {
         result = httpUpdate.update(plainClient, url);

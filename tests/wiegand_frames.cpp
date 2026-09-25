@@ -23,8 +23,27 @@ void bit(bool one) {
     PINB = _BV(WGD_D0) | _BV(WGD_D1);
     PCINT0_vect(); // Rising edge must not contribute a bit.
 }
+uint8_t popcount12(uint32_t value) {
+    uint8_t count = 0;
+    value &= 0xFFF;
+    while (value) {
+        count += value & 1;
+        value >>= 1;
+    }
+    return count;
+}
+uint32_t encodeWiegand26(uint32_t code) {
+    code &= 0xFFFFFF;
+    bool evenParity = (popcount12(code >> 12) % 2) != 0;
+    bool oddParity = (popcount12(code) % 2) == 0;
+    return (evenParity ? (1u << 25) : 0) | (code << 1) | (oddParity ? 1u : 0);
+}
 void frame(uint32_t code) {
-    uint32_t encoded = (code << 1) | 0x2000001;
+    uint32_t encoded = encodeWiegand26(code);
+    for (int i = 25; i >= 0; --i) bit((encoded >> i) & 1);
+    TIM1_OVF_vect();
+}
+void rawFrame(uint32_t encoded) {
     for (int i = 25; i >= 0; --i) bit((encoded >> i) & 1);
     TIM1_OVF_vect();
 }
@@ -36,6 +55,8 @@ uint32_t read() {
 }
 int main() {
     setup();
+    rawFrame(encodeWiegand26(0x123456) ^ (1u << 25));
+    assert(!hasNewData && completedCode == 0 && counter == 0 && buffer == 0 && read() == 0);
     frame(0x123456);
     assert(hasNewData && completedCode == 0x123456 && counter == 0 && buffer == 0);
     frame(0xABCDEF);
@@ -48,7 +69,7 @@ int main() {
     assert(read() == 0);
     frame(0x654321);
     uint32_t next = 0x0FEDCB;
-    uint32_t encoded = (next << 1) | 0x2000001;
+    uint32_t encoded = encodeWiegand26(next);
     for (int i = 25; i >= 13; --i) bit((encoded >> i) & 1);
     uint64_t partial = buffer;
     uint8_t partialCount = counter;
@@ -56,7 +77,7 @@ int main() {
     for (int i = 12; i >= 0; --i) bit((encoded >> i) & 1);
     TIM1_OVF_vect();
     assert(read() == next);
-    encoded = (0xABCDEFu << 1) | 0x2000001;
+    encoded = encodeWiegand26(0xABCDEFu);
     for (int i = 25; i >= 13; --i) bit((encoded >> i) & 1);
     partial = buffer;
     partialCount = counter;

@@ -39,9 +39,30 @@ bool parseMqttUrl(const String& url, String& host, uint16_t& port, uint16_t defa
     int colonIdx = remainder.indexOf(':');
     if (colonIdx >= 0) {
         host = remainder.substring(0, colonIdx);
-        port = static_cast<uint16_t>(remainder.substring(colonIdx + 1).toInt());
+        String portText = remainder.substring(colonIdx + 1);
+        host.trim();
+        portText.trim();
+        if (portText.length() == 0) {
+            return false;
+        }
+        uint32_t parsedPort = 0;
+        for (size_t i = 0; i < portText.length(); ++i) {
+            char c = portText[i];
+            if (c < '0' || c > '9') {
+                return false;
+            }
+            parsedPort = parsedPort * 10 + static_cast<uint32_t>(c - '0');
+            if (parsedPort > 65535) {
+                return false;
+            }
+        }
+        if (parsedPort == 0) {
+            return false;
+        }
+        port = static_cast<uint16_t>(parsedPort);
     } else {
         host = remainder;
+        host.trim();
         port = defaultPort;
     }
 
@@ -54,7 +75,10 @@ void MqttConnection::begin(const NodeConfig& config) {
     _config = config;
     _instance = this;
 
-    parseMqttUrl(config.mqttServerUrl, _brokerHost, _brokerPort, config.mqttUseTls ? 8883 : 1883);
+    _serverConfigured = parseMqttUrl(config.mqttServerUrl, _brokerHost, _brokerPort, config.mqttUseTls ? 8883 : 1883);
+    if (!_serverConfigured) {
+        Serial.printf("[MQTT] Invalid broker URL \"%s\"; MQTT will stay disconnected\n", config.mqttServerUrl.c_str());
+    }
 
     if (config.mqttUseTls) {
         const char* pem = riot2::rootCaPem();
@@ -84,6 +108,10 @@ void MqttConnection::begin(const NodeConfig& config) {
 }
 
 void MqttConnection::attemptConnect() {
+    if (!_serverConfigured) {
+        return;
+    }
+
     Serial.printf("[MQTT] Connecting to broker as \"%s\" (tls=%d)...\n", _config.id.c_str(), _config.mqttUseTls);
     _lastAttemptMs = millis();
 
@@ -191,6 +219,10 @@ void MqttConnection::publishReport(const Report& report) {
 }
 
 void MqttConnection::loop() {
+    if (!_serverConfigured) {
+        return;
+    }
+
     if (WiFi.status() != WL_CONNECTED) {
         return;  // WifiConnection owns Wi-Fi retry; wait for it to come back
     }

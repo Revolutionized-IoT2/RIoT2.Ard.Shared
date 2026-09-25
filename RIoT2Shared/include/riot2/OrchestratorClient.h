@@ -17,11 +17,12 @@
 // it can be reloaded offline on a later boot.
 //
 // requestConfiguration() performs a blocking HTTP(S) GET (bounded by a
-// timeout), pinning the configured root CA for HTTPS URLs (see TlsRootCa.h),
-// falling back to an insecure connection with a logged warning if none is
-// configured. It only runs on the rare orchestrator (re)announce event, not
-// on every loop() iteration, so blocking briefly is an acceptable trade-off
-// for now; revisit if it turns out to starve MQTT/UI processing in practice.
+// timeout and a 32 KiB response-body cap), pinning the configured root CA for
+// HTTPS URLs (see TlsRootCa.h), falling back to an insecure connection with a
+// logged warning if none is configured. It only runs on the rare orchestrator
+// (re)announce event, not on every loop() iteration, so blocking briefly is an
+// acceptable trade-off for now; revisit if it turns out to starve MQTT/UI
+// processing in practice.
 class OrchestratorClient {
 public:
     using ConfigurationCallback = std::function<void(const NodeConfiguration&)>;

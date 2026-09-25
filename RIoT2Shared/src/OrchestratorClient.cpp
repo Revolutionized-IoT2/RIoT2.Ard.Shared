@@ -9,12 +9,80 @@
 
 namespace {
 
+constexpr size_t kMaxConfigurationBytes = 32768;
+constexpr size_t kReadBufferBytes = 256;
+constexpr unsigned long kConfigurationReadTimeoutMs = 8000;
+
 String buildConfigurationUrl(const String& apiBaseUrl, const String& nodeId) {
     String base = apiBaseUrl;
     if (!base.endsWith("/")) {
         base += "/";
     }
     return base + "api/Nodes/" + nodeId + "/configuration";
+}
+
+bool readConfigurationBody(HTTPClient& http, String& body) {
+    int contentLength = http.getSize();
+    if (contentLength > static_cast<int>(kMaxConfigurationBytes)) {
+        Serial.printf("[Orchestrator] Configuration response too large: %d bytes (max=%u)\n", contentLength,
+                      static_cast<unsigned>(kMaxConfigurationBytes));
+        return false;
+    }
+
+    if (contentLength > 0) {
+        body.reserve(static_cast<unsigned int>(contentLength));
+    } else {
+        body.reserve(4096);
+    }
+
+    WiFiClient* stream = http.getStreamPtr();
+    uint8_t buffer[kReadBufferBytes];
+    size_t total = 0;
+    unsigned long lastProgressMs = millis();
+
+    while (http.connected() && (contentLength < 0 || total < static_cast<size_t>(contentLength))) {
+        int available = stream->available();
+        if (available <= 0) {
+            if ((millis() - lastProgressMs) >= kConfigurationReadTimeoutMs) {
+                Serial.println("[Orchestrator] Configuration response timed out while reading body");
+                return false;
+            }
+            delay(1);
+            continue;
+        }
+
+        size_t toRead = static_cast<size_t>(available);
+        if (toRead > sizeof(buffer)) {
+            toRead = sizeof(buffer);
+        }
+        if (contentLength >= 0) {
+            size_t remaining = static_cast<size_t>(contentLength) - total;
+            if (toRead > remaining) {
+                toRead = remaining;
+            }
+        }
+        if (total + toRead > kMaxConfigurationBytes) {
+            Serial.printf("[Orchestrator] Configuration response exceeded max size (%u bytes)\n",
+                          static_cast<unsigned>(kMaxConfigurationBytes));
+            return false;
+        }
+
+        size_t read = stream->readBytes(buffer, toRead);
+        if (read == 0) {
+            continue;
+        }
+        body.concat(reinterpret_cast<const char*>(buffer), read);
+        total += read;
+        lastProgressMs = millis();
+    }
+
+    if (contentLength >= 0 && total != static_cast<size_t>(contentLength)) {
+        Serial.printf("[Orchestrator] Configuration response ended early: %u/%d bytes\n", static_cast<unsigned>(total),
+                      contentLength);
+        return false;
+    }
+
+    return true;
 }
 
 }  // namespace
@@ -94,7 +162,11 @@ bool OrchestratorClient::requestConfiguration(const String& apiBaseUrl, const St
         return false;
     }
 
-    String body = http.getString();
+    String body;
+    if (!readConfigurationBody(http, body)) {
+        http.end();
+        return false;
+    }
     http.end();
 
     if (_cacheEnabled) {

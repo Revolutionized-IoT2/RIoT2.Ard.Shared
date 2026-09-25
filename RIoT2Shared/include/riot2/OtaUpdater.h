@@ -10,7 +10,9 @@
 // node's riot2/node/{id}/command topic to trigger an update.
 namespace OtaUpdater {
 
-// Downloads the firmware binary at `url` and flashes it. Blocks for the
+// Downloads the firmware binary at `url` and flashes it. HTTPS URLs are
+// validated against riot2::rootCaPem() when configured, otherwise a warning
+// is logged before falling back to an insecure TLS connection. Blocks for the
 // duration of the download/flash (no MQTT/UI servicing meanwhile). On
 // success the device reboots automatically and this function never returns;
 // on failure it returns false and the current firmware keeps running.
