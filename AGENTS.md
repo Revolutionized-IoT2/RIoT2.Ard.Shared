@@ -36,8 +36,10 @@ python .\tests\test_firmware_architecture.py
 - Test: the Python tests compile selected production code with host fakes; the MQTT test needs
   ArduinoJson headers already present under a board's `.pio\libdeps`.
 - Run: no local service or device run command exists here.
-- Release: no CI workflow or tags are present in this repository. Consumers ship firmware images
-  that include this source by path.
+- CI: `.github/workflows/ci.yml` builds M5Core2, M5Dial and WiegandI2C against this checkout and
+  runs the native tests with `g++` on every push ([CI guide](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/guides/ci.md)). The tests must also pass with
+  GCC and Clang, so define `static constexpr` members that are bound by reference (C++14).
+- Release: none. Consumers ship firmware images that include this source by path.
 
 ## Layout
 
