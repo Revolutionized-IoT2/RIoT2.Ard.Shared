@@ -2,6 +2,10 @@
 
 #include <WiFi.h>
 
+// C++14 (gnu++14) needs these definitions when min() binds the constants by reference.
+constexpr unsigned long WifiConnection::kInitialBackoffMs;
+constexpr unsigned long WifiConnection::kMaxBackoffMs;
+
 void WifiConnection::begin(const String& ssid, const String& password) {
     _ssid = ssid;
     _password = password;

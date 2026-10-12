@@ -10,6 +10,10 @@
 
 MqttConnection* MqttConnection::_instance = nullptr;
 
+// C++14 (gnu++14) needs these definitions when min() binds the constants by reference.
+constexpr unsigned long MqttConnection::kInitialBackoffMs;
+constexpr unsigned long MqttConnection::kMaxBackoffMs;
+
 namespace {
 
 void publishDocument(PubSubClient& client, const String& topic, const JsonDocument& doc, bool retained) {

@@ -27,6 +27,8 @@ struct WifiFake {
     IP localIP() { return {}; }
 } WiFi;
 // PRODUCTION_WIFI_CLASS
+constexpr unsigned long WifiConnection::kInitialBackoffMs;
+constexpr unsigned long WifiConnection::kMaxBackoffMs;
 // PRODUCTION_WIFI_METHODS
 WifiConnection wifi;
 struct Views {

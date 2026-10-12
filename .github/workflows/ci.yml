@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firmware:
+    uses: Revolutionized-IoT2/.github/.github/workflows/firmware-validate.yml@main
+
+  secret-scan:
+    uses: Revolutionized-IoT2/.github/.github/workflows/secret-scan.yml@main
