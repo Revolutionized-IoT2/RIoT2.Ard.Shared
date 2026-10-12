@@ -105,7 +105,7 @@ python .\tests\test_firmware_architecture.py
   duplicated firmware views and runtime wiring.
 - Optional hardening [S9](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/backlog/optional-hardening.md):
   provisioning security, NVS encryption, signed OTA and fail-closed TLS.
-- Architecture proposal [A8](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/architecture/target.md#a8-share-a-firmware-noderuntime):
+- Accepted architecture item ([ADR 0011](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/adr/0011-firmware-noderuntime.md)) [A8](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/architecture/target.md#a8-share-a-firmware-noderuntime):
   shared firmware `NodeRuntime`.
 - Plan [M5](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/plans/m05-firmware-node-runtime.md):
   shared firmware view logic and node runtime.
