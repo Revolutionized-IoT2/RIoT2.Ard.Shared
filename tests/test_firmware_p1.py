@@ -64,6 +64,7 @@ def compile_and_run(name, source, include_dirs=()):
             raise AssertionError(
                 f"{name} failed ({result.returncode})\n{result.stdout}\n{result.stderr}"
             )
+    return result.stdout
 
 
 class FirmwareP1Tests(unittest.TestCase):

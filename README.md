@@ -62,9 +62,11 @@ available:
 python .\tests\test_firmware_p1.py
 python .\tests\test_firmware_p2.py
 python .\tests\test_firmware_architecture.py
+python .\tests\test_golden_messages.py
 ```
 
-The MQTT regression uses ArduinoJson headers already restored under a board project's
+`test_golden_messages.py` runs both boards' MQTT handlers and `OrchestratorClient::parseConfiguration`
+on the [golden files](https://github.com/Revolutionized-IoT2/RIoT2.Core/blob/main/contracts/golden/README.md); RIoT2.Core must be checked out next to this repository. The MQTT regression uses ArduinoJson headers already restored under a board project's
 `.pio\libdeps` directory. It does not download dependencies. Generated native-test files are kept
 under `tests\.host-build`.
 

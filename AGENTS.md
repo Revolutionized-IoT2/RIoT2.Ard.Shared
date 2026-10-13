@@ -30,11 +30,13 @@ C++14 compiler is available:
 python .\tests\test_firmware_p1.py
 python .\tests\test_firmware_p2.py
 python .\tests\test_firmware_architecture.py
+python .\tests\test_golden_messages.py
 ```
 
 - Build: build both consumers. This repository has no standalone PlatformIO environment.
-- Test: the Python tests compile selected production code with host fakes; the MQTT test needs
-  ArduinoJson headers already present under a board's `.pio\libdeps`.
+- Test: the Python tests compile selected production code with host fakes; the MQTT and golden
+  tests need ArduinoJson headers already present under a board's `.pio\libdeps`. The golden test
+  reads `../RIoT2.Core/contracts/golden` (CI clones RIoT2.Core) and pins divergence C2.
 - Run: no local service or device run command exists here.
 - CI: `.github/workflows/ci.yml` builds M5Core2, M5Dial and WiegandI2C against this checkout and
   runs the native tests with `g++` on every push ([CI guide](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/guides/ci.md)). The tests must also pass with
