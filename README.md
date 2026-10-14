@@ -15,6 +15,7 @@ project's `platformio.ini`.
 | Path | Contents |
 |---|---|
 | `RIoT2Shared/include/riot2/` | Shared public headers for Wi-Fi, MQTT, provisioning, configuration, OTA, BLE, GPIO peripherals and wire models |
+| `RIoT2Shared/include/riot2/views/`, `src/views/` | View models: the display-independent logic of the twelve views both boards have (Alert, BLE, Button, Clock, ColorScheme, Notification, Percentage, SceneSelector, Slider, Timer, Toggle, Value) and their default templates |
 | `RIoT2Shared/src/` | Implementations compiled into each consuming PlatformIO project |
 | `scripts/generate_manifest.py` | PlatformIO pre-build script that generates each board's embedded manifest |
 | `tests/` | Native host regression tests and fixtures |
@@ -63,12 +64,15 @@ python .\tests\test_firmware_p1.py
 python .\tests\test_firmware_p2.py
 python .\tests\test_firmware_architecture.py
 python .\tests\test_golden_messages.py
+python .\tests\test_view_models.py
 ```
 
 `test_golden_messages.py` runs both boards' MQTT handlers and `OrchestratorClient::parseConfiguration`
 on the [golden files](https://github.com/Revolutionized-IoT2/RIoT2.Core/blob/main/contracts/golden/README.md), and checks that the template server writes the same template shape; RIoT2.Core must be checked out next to this repository. The MQTT regression uses ArduinoJson headers already restored under a board project's
-`.pio\libdeps` directory. It does not download dependencies. Generated native-test files are kept
-under `tests\.host-build`. On Windows, run the tests from a Visual Studio developer shell (they use
+`.pio\libdeps` directory. It does not download dependencies. `test_view_models.py` compiles every
+model in `RIoT2Shared/src/views` with each `tests/views/*_test.cpp`, against the `Arduino.h` shim in
+`tests/host` (a model without a test fails it). Generated native-test files are kept under
+`tests\.host-build` (or `RIOT2_HOST_BUILD`). On Windows, run the tests from a Visual Studio developer shell (they use
 `cl`), or set `CXX` to another C++14 compiler.
 
 ## Firmware behavior supplied here

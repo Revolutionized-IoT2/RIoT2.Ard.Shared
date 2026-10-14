@@ -8,17 +8,37 @@
 struct String : std::string {
     using std::string::string;
 };
-struct CommandTemplate { String id, address; };
 struct ReportTemplate { String id, name, address; };
 struct DeviceConfiguration {
-    String name;
-    int deviceParameters = 0;
-    std::vector<CommandTemplate> commandTemplates;
     std::vector<ReportTemplate> reportTemplates;
 };
-String findParameter(int, const char*, const String& fallback) { return fallback; }
 struct Command {};
 struct Report { String id, value; };
+namespace riot2 {
+namespace views {
+// Stands in for the shared model (tested in tests/views/ButtonModel_test.cpp): one button per
+// report template, pressing reports "true".
+class ButtonModel {
+public:
+    static constexpr unsigned long kFlashMs = 200;
+    std::vector<ReportTemplate> reports;
+    std::vector<bool> active;
+    void begin(const DeviceConfiguration& config) {
+        reports = config.reportTemplates;
+        active.assign(reports.size(), false);
+    }
+    size_t size() const { return reports.size(); }
+    bool isActive(size_t index) const { return active[index]; }
+    bool press(size_t index, Report& report) {
+        if (index >= reports.size()) {
+            return false;
+        }
+        report = Report{reports[index].id, "true"};
+        return true;
+    }
+};
+}  // namespace views
+}  // namespace riot2
 struct lv_obj_t {};
 struct lv_event_t { void* data; };
 struct lv_timer_t {
@@ -29,12 +49,12 @@ struct lv_timer_t {
 std::vector<std::unique_ptr<lv_timer_t>> timers;
 unsigned reports = 0, visualUpdates = 0;
 bool visualState = false;
-constexpr uint32_t kFlashMs = 200;
 constexpr uint32_t LV_BUTTONMATRIX_BUTTON_NONE = UINT32_MAX;
 uint32_t selectedButton = 0;
 void* lv_event_get_user_data(lv_event_t* e) { return e->data; }
 uint32_t lv_buttonmatrix_get_selected_button(lv_obj_t*) { return selectedButton; }
-lv_timer_t* lv_timer_create(void (*cb)(lv_timer_t*), uint32_t, void* data) {
+lv_timer_t* lv_timer_create(void (*cb)(lv_timer_t*), uint32_t period, void* data) {
+    assert(period == riot2::views::ButtonModel::kFlashMs);
     timers.emplace_back(new lv_timer_t{cb, data, true});
     return timers.back().get();
 }
@@ -99,7 +119,7 @@ int main() {
         view.begin(config);
         lv_event_t event{&view};
         view.matrixEventCb(&event);
-        view._slots[0].active = true; // Latest inbound state must win at flash expiry.
+        view._model.active[0] = true; // Latest inbound state must win at flash expiry.
         expireTimers();
         assert(visualState && liveTimers() == 0 && view._flashTimers.empty());
         view.matrixEventCb(&event);

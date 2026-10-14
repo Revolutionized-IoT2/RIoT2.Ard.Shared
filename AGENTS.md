@@ -31,6 +31,7 @@ python .\tests\test_firmware_p1.py
 python .\tests\test_firmware_p2.py
 python .\tests\test_firmware_architecture.py
 python .\tests\test_golden_messages.py
+python .\tests\test_view_models.py
 ```
 
 - Build: build both consumers. This repository has no standalone PlatformIO environment.
@@ -59,8 +60,9 @@ python .\tests\test_golden_messages.py
 | `RIoT2Shared/include/riot2/OtaRollback.h`, `src/OtaRollback.cpp` | Trial of a new OTA image: marks it valid after the first configuration fetch, or rolls it back on a deadline |
 | `RIoT2Shared/include/riot2/BleScanner.h`, `src/BleScanner.cpp` | Shared BLE scanner and callbacks |
 | `RIoT2Shared/include/riot2/GpioPeripheral.h`, `src/GpioPeripheral.cpp` | Shared Grove GPIO peripheral |
+| `RIoT2Shared/include/riot2/views/`, `src/views/` | `riot2::views` models of the shared view types, `ViewSupport` helpers (slot pairing, command values, report literals, templates) |
 | `scripts/generate_manifest.py` | PlatformIO pre-build manifest generation |
-| `tests/` | Host regression harness and fixtures |
+| `tests/` | Host regression harness and fixtures; `tests/views/*_test.cpp` test the view models, `tests/host/Arduino.h` is their `Arduino.h` |
 
 ## Contracts implemented here
 
@@ -75,7 +77,13 @@ python .\tests\test_golden_messages.py
 
 ## Rules
 
-- Put reusable firmware logic here, not in only one board repository.
+- Put reusable firmware logic here, not in only one board repository. A view's logic (configuration
+  and parameters, template pairing, command values, state, timing, reports, default template) goes
+  in its `riot2::views` model; the board views only render the model and turn input into model
+  calls. A new model needs `tests/views/<Model>_test.cpp`.
+- View models build on the host: use only what `tests/host/Arduino.h` provides (extend it when you
+  need more), `millis()`, ArduinoJson and the standard library; never `JsonVariant::as<String>()`
+  (use `commandText`) or board, LVGL, M5 or sound APIs.
 - A change here is done only when both `RIoT2.Ard.M5Core2.Node` and `RIoT2.Ard.M5Dial.Node` build.
 - Keep firmware MQTT topics mirrored from `RIoT2.Core/Constants.cs`; update hub contracts when a
   cross-repository contract changes.
@@ -112,7 +120,7 @@ python .\tests\test_golden_messages.py
 ## Related work
 
 - Backlog item [15](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/backlog/open-issues.md):
-  duplicated firmware views and runtime wiring.
+  duplicated firmware runtime wiring (the views are shared since I17).
 - Optional hardening [S9](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/backlog/optional-hardening.md):
   provisioning security, NVS encryption, signed OTA and fail-closed TLS.
 - Accepted architecture item ([ADR 0011](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/adr/0011-firmware-noderuntime.md)) [A8](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/architecture/target.md#a8-share-a-firmware-noderuntime):

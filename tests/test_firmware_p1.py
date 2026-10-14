@@ -14,7 +14,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-BUILD = Path(__file__).resolve().parent / ".host-build"
+# RIOT2_HOST_BUILD lets parallel runs use separate folders; each test class deletes its folder.
+BUILD = Path(os.environ.get("RIOT2_HOST_BUILD") or Path(__file__).resolve().parent / ".host-build")
 CORE = ROOT / "RIoT2.Ard.M5Core2.Node"
 DIAL = ROOT / "RIoT2.Ard.M5Dial.Node"
 SHARED = ROOT / "RIoT2.Ard.Shared" / "RIoT2Shared"

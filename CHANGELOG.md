@@ -4,6 +4,16 @@ All notable documentation changes to `RIoT2.Ard.Shared`.
 
 ## [Unreleased]
 
+- Added the view models ([I17](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i17-firmware-view-models-m), plan M5 steps 1–2): `riot2::views`
+  `AlertModel`, `BleModel`, `ButtonModel`, `ClockModel`, `ColorSchemeModel`, `NotificationModel`,
+  `PercentageModel`, `SceneSelectorModel`, `SliderModel`, `TimerModel`, `ToggleModel` and
+  `ValueModel`, with `ViewSupport` and `AlertContent` helpers. They hold what the M5Core2 and
+  M5Dial views had in common: configuration and parameters, template pairing, command values,
+  state and timing, reports and the default templates. The boards' views only render them.
+- Added `tests/test_view_models.py` with a test per model (`tests/views`), run by CI, and the
+  `tests/host/Arduino.h` shim. The Button, BLE and Timer regressions run the real models.
+  `RIOT2_HOST_BUILD` sets the native-test build folder.
+
 - Added `Topics::commandResult()` and `Topics::status()`, mirroring the topics that RIoT2.Core 1.6.0
   reserves ([I14](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i14-additive-contract-release-s)). Nothing publishes on them yet.
 

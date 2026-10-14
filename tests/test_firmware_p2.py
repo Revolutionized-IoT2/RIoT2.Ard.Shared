@@ -6,6 +6,7 @@ import shutil
 import unittest
 
 from test_firmware_p1 import BUILD, CORE, DIAL, SHARED, WIEGAND, body, compile_and_run, declaration
+from test_view_models import arduino_json_headers
 
 
 class FirmwareP2Tests(unittest.TestCase):
@@ -95,9 +96,13 @@ class FirmwareP2Tests(unittest.TestCase):
         compile_and_run("mqtt_json", source, [headers[0].parent])
 
     def test_ble_rebuild_snapshot(self):
-        source = (Path(__file__).parent / "ble_snapshot.cpp").read_text(encoding="utf-8")
-        source = source.replace("// PRODUCTION_TYPES",
-                                declaration(SHARED / "include" / "riot2" / "BleTypes.h"))
+        tests = Path(__file__).parent
+        source = (tests / "ble_snapshot.cpp").read_text(encoding="utf-8")
+        # Both boards' BLEViews run the real BleModel.
+        source = source.replace("// PRODUCTION_MODELS", "\n".join(
+            f'#include "{(SHARED / "src" / "views" / name).as_posix()}"'
+            for name in ("ViewSupport.cpp", "BleModel.cpp")
+        ))
         source = source.replace("// PRODUCTION_SCANNER_CLASS",
                                 declaration(SHARED / "include" / "riot2" / "BleScanner.h"))
         scanner = SHARED / "src" / "BleScanner.cpp"
@@ -108,17 +113,17 @@ class FirmwareP2Tests(unittest.TestCase):
         for root, name in [(CORE, "Core"), (DIAL, "Dial")]:
             cls = declaration(root / "include" / "BLEView.h").replace("BLEView", name + "BLEView")
             source = source.replace("// PRODUCTION_" + name.upper() + "_CLASS", cls)
-            methods = ["void BLEView::onBleSnapshot(", "void BLEView::onBleDeviceDiscovered(",
-                       "void BLEView::onBleDeviceLost(", "bool BLEView::isAddressAllowed("]
+            methods = ["void BLEView::begin(", "void BLEView::onBleSnapshot(", "void BLEView::onBleDeviceDiscovered(",
+                       "void BLEView::onBleDeviceLost(", "void BLEView::onBleAdvertisement("]
             if root == DIAL:
-                methods.append("void BLEView::clampScrollOffset()")
+                methods += ["void BLEView::clampScrollOffset()", "void BLEView::onEncoderChange(",
+                            "bool BLEView::isInteracting()"]
             cpp = root / "src" / "BLEView.cpp"
             code = "\n".join(body(cpp, m) for m in methods).replace("BLEView::", name + "BLEView::")
             source = source.replace("// PRODUCTION_" + name.upper() + "_METHODS", code)
             restore = body(root / "src" / "ViewManager.cpp", "if (view->consumesBleEvents())")
             source = source.replace("// RESTORE_" + name.upper(), restore)
-        compile_and_run("ble_snapshot", source)
-
+        compile_and_run("ble_snapshot", source, [tests / "host", SHARED / "include", arduino_json_headers()])
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
