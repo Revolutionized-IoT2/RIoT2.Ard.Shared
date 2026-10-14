@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <string>
 #include <vector>
 using String = std::string;
@@ -30,7 +31,12 @@ struct WifiFake {
 constexpr unsigned long WifiConnection::kInitialBackoffMs;
 constexpr unsigned long WifiConnection::kMaxBackoffMs;
 // PRODUCTION_WIFI_METHODS
-WifiConnection wifi;
+// NodeRuntime's members, as the spliced code uses them.
+WifiConnection _wifi;
+struct Hooks {
+    std::function<void()> onBleStarted;
+} _hooks;
+unsigned bleStarts = 0;
 struct Views {
     bool consumer = false;
     bool hasBleConsumer() { return consumer; }
@@ -42,36 +48,39 @@ struct BleScanner {
         bleRunning = true;
     }
 };
-bool bleActive = false;
-void configureCanvasColorDepth() {}
+bool _bleActive = false;
 void applyConfiguration() {
+    bool wantsBle = viewManager.hasBleConsumer();
     // PRODUCTION_BLE_ACTIVATION
 }
 int main() {
-    wifi.begin("ssid", "password");
+    _hooks.onBleStarted = [] { ++bleStarts; };
+    _wifi.begin("ssid", "password");
     applyConfiguration();
-    wifi.loop();
-    assert(!bleActive && !WiFi.sleep && WiFi.begins == 1);
+    _wifi.loop();
+    assert(!_bleActive && !WiFi.sleep && WiFi.begins == 1);
     WiFi.statusValue = WL_CONNECTED;
-    wifi.loop();
+    _wifi.loop();
     viewManager.consumer = true;
     applyConfiguration();
-    assert(bleActive && bleRunning && WiFi.sleep);
+    assert(_bleActive && bleRunning && WiFi.sleep && bleStarts == 1);
+    applyConfiguration();
+    assert(bleStarts == 1);  // the scanner starts once
     WiFi.statusValue = 0;
-    wifi.loop(); // Records disconnect.
+    _wifi.loop(); // Records disconnect.
     nowMs += 30001;
-    wifi.loop(); // Retry with active BLE.
+    _wifi.loop(); // Retry with active BLE.
     assert(WiFi.sleep && WiFi.begins == 2);
     nowMs += 15001;
-    wifi.loop(); // Connection times out.
+    _wifi.loop(); // Connection times out.
     nowMs += 30001;
-    wifi.loop(); // Subsequent retry must also preserve sleep.
+    _wifi.loop(); // Subsequent retry must also preserve sleep.
     assert(WiFi.sleep && WiFi.begins == 3);
     viewManager.consumer = false;
     applyConfiguration(); // Scanner stays active after removal; retain compatible policy.
     nowMs += 15001;
-    wifi.loop();
+    _wifi.loop();
     nowMs += 30001;
-    wifi.loop();
+    _wifi.loop();
     assert(WiFi.sleep && WiFi.begins == 4);
 }

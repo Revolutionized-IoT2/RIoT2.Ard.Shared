@@ -1,9 +1,11 @@
-// Golden-file contract test (I05, plan M7 step 3): the board's real MQTT handlers and the shared
-// OrchestratorClient::parseConfiguration read the golden files from RIoT2.Core/contracts/golden.
+// Golden-file contract test (I05, plan M7 step 3): NodeRuntime's real MQTT handlers (both boards
+// use them since I18) and OrchestratorClient::parseConfiguration read the golden files from
+// RIoT2.Core/contracts/golden.
 // test_golden_messages.py injects the production code and the golden JSON, runs this program and
 // compares its output with what Python's json module reads from the same files.
 #include <cassert>
 #include <cstdio>
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -24,18 +26,9 @@ String serializeDeviceConfigurations(const std::vector<DeviceConfiguration>& con
 }
 // PRODUCTION_SERIALIZE_CONFIGURATIONS
 
-// Board globals the handlers use.
+// The NodeRuntime members the handlers use.
 const char* const kOtaCommandId = "system.ota";
-struct Buzzer { static void confirm() {} static void error() {} };
-struct HapticFeedback {
-    static HapticFeedback& instance() { static HapticFeedback feedback; return feedback; }
-    void confirm() {}
-    void error() {}
-};
-struct PopupOverlay { void showAlert(const char*, const char*) {} } popupOverlay;
-struct OtaUpdater { static bool performUpdate(const String&) { return true; } };
-void showStatus(const char*, const char*) {}
-void wakeDisplay() {}
+namespace OtaUpdater { bool performUpdate(const String&) { return true; } }
 struct Router {
     unsigned calls = 0;
     String id, value;
@@ -46,10 +39,21 @@ struct Router {
         serializeJson(command.value, value);
         return false;
     }
-} viewManager, peripheralManager;
-struct Retry { String url; void request(const String& apiBaseUrl) { url = apiBaseUrl; } } configurationRetry;
-bool tabsInitialized = true;
-struct Splash { void setConfigStatus(const char*) {} } splashView;
+};
+struct Hooks {
+    std::function<void(const Command&)> onCommand;
+    std::function<void()> onConfigurationRequested;
+    std::function<void(const String&)> onOtaStarted;
+    std::function<void()> onOtaFailed;
+};
+struct Retry { String url; void request(const String& apiBaseUrl) { url = apiBaseUrl; } };
+struct NodeRuntime {
+    Hooks _hooks;
+    Router _peripherals;
+    Retry _configurationRetry;
+    void handleCommand(const String& topic, const String& payload);
+    void handleConfigurationMessage(const String& topic, const String& payload);
+};
 // PRODUCTION_HANDLERS
 // GOLDEN_DATA
 
@@ -60,15 +64,21 @@ String parameters(const ParameterList& list) {
 }
 
 int main() {
+    NodeRuntime runtime;
+    Router views;
+    unsigned requested = 0;
+    runtime._hooks.onCommand = [&](const Command& command) { views.onCommand(command.id, command); };
+    runtime._hooks.onConfigurationRequested = [&] { ++requested; };
     for (const auto& golden : kGoldenCommands) {
-        viewManager.calls = peripheralManager.calls = 0;
-        handleCommand("riot2/node/golden/command", golden);
-        assert(viewManager.calls == 1 && peripheralManager.calls == 1);
-        std::printf("command|%s|%s\n", viewManager.id.c_str(), viewManager.value.c_str());
+        views.calls = runtime._peripherals.calls = 0;
+        runtime.handleCommand("riot2/node/golden/command", golden);
+        assert(views.calls == 1 && runtime._peripherals.calls == 1);
+        std::printf("command|%s|%s\n", views.id.c_str(), views.value.c_str());
     }
 
-    handleConfigurationMessage("riot2/node/golden/configuration", kGoldenConfigurationCommand);
-    std::printf("configuration|%s\n", configurationRetry.url.c_str());
+    runtime.handleConfigurationMessage("riot2/node/golden/configuration", kGoldenConfigurationCommand);
+    assert(requested == 1);
+    std::printf("configuration|%s\n", runtime._configurationRetry.url.c_str());
 
     OrchestratorClient client;
     NodeConfiguration node;

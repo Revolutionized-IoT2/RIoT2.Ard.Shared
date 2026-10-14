@@ -52,6 +52,7 @@ python .\tests\test_view_models.py
 | `RIoT2Shared/include/riot2/Topics.h` | Firmware copy of RIoT2 MQTT topic templates |
 | `RIoT2Shared/include/riot2/DeviceConfiguration.h` | Firmware subset of node configuration and templates |
 | `RIoT2Shared/include/riot2/NodeConfig.h`, `src/NodeConfig.cpp` | NVS-backed node id, Wi-Fi, MQTT and feedback settings |
+| `RIoT2Shared/include/riot2/NodeRuntime.h`, `src/NodeRuntime.cpp` | The node lifecycle both boards run: NVS settings, provisioning, Wi-Fi, MQTT handshake, configuration fetch and retry, templates, SNTP, OTA, peripherals, BLE start |
 | `RIoT2Shared/include/riot2/MqttConnection.h`, `src/MqttConnection.cpp` | PubSubClient lifecycle, online/LWT messages, command/report routing |
 | `RIoT2Shared/include/riot2/OrchestratorClient.h`, `src/OrchestratorClient.cpp` | Blocking configuration fetch and parser |
 | `RIoT2Shared/include/riot2/ProvisioningPortal.h`, `src/ProvisioningPortal.cpp` | SoftAP captive portal (`GET /`, `POST /save`) |
@@ -88,9 +89,13 @@ python .\tests\test_view_models.py
 - Keep firmware MQTT topics mirrored from `RIoT2.Core/Constants.cs`; update hub contracts when a
   cross-repository contract changes.
 - Do not assign `system.ota` to a view command template; it is reserved for firmware OTA.
-- Every firmware calls `OtaRollback::begin()` first in `setup()` and `OtaRollback::markHealthy()`
-  only after `requestConfiguration()` succeeded. Don't mark an image healthy earlier, and don't
-  restart a device on purpose while `OtaRollback::isPendingVerify()`: a restart rolls back.
+- Lifecycle code (Wi-Fi, MQTT, configuration, OTA, peripherals, BLE start) goes in `NodeRuntime`;
+  a board's `main.cpp` keeps hardware setup, its UI and `NodeRuntimeHooks`. A board feature the
+  runtime needs is a hook, not a board `#ifdef`.
+- Every firmware calls `NodeRuntime::startOtaTrial()` first in `setup()`; `NodeRuntime` calls
+  `OtaRollback::markHealthy()` only after `requestConfiguration()` succeeded. Don't mark an image
+  healthy earlier, and don't restart a device on purpose while `OtaRollback::isPendingVerify()`: a
+  restart rolls back.
 - Template `type` is an `int` (`riot2::ValueType`), as in RIoT2.Core. Don't add a separate
   `valueType`.
 - Do not read or edit vendored `.pio\libdeps` content except to use restored headers for tests.
@@ -119,8 +124,7 @@ python .\tests\test_view_models.py
 
 ## Related work
 
-- Backlog item [15](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/backlog/open-issues.md):
-  duplicated firmware runtime wiring (the views are shared since I17).
+- Backlog item 15 (duplicated firmware views and runtime wiring): done in I17 and I18.
 - Optional hardening [S9](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/backlog/optional-hardening.md):
   provisioning security, NVS encryption, signed OTA and fail-closed TLS.
 - Accepted architecture item ([ADR 0011](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/adr/0011-firmware-noderuntime.md)) [A8](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/architecture/target.md#a8-share-a-firmware-noderuntime):

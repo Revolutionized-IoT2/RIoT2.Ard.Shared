@@ -97,8 +97,10 @@ class FirmwareP1Tests(unittest.TestCase):
                       "void WifiConnection::loop()"]
         source = source.replace("// PRODUCTION_WIFI_METHODS",
                                 "\n".join(body(cpp, s) for s in signatures))
-        activation = body(DIAL / "src" / "main.cpp",
-                          "if (viewManager.hasBleConsumer() && !bleActive)")
+        # NodeRuntime::handleConfiguration from "if (!wantsBle)" to its end: the BLE start-up both
+        # boards share.
+        handler = body(SHARED / "src" / "NodeRuntime.cpp", "void NodeRuntime::handleConfiguration(")
+        activation = handler[handler.index("if (!wantsBle)"):handler.rindex("}")]
         source = source.replace("// PRODUCTION_BLE_ACTIVATION", activation)
         compile_and_run("dial_reconnect", source)
 

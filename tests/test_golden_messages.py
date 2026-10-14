@@ -1,6 +1,6 @@
 """Golden-file contract test for the firmware (I05, plan M7 step 3); no board SDK or hardware.
 
-The board MQTT handlers (M5Core2 and M5Dial main.cpp) and OrchestratorClient::parseConfiguration
+NodeRuntime's MQTT handlers (both boards, since I18) and OrchestratorClient::parseConfiguration
 read the golden files in RIoT2.Core/contracts/golden, which must be cloned next to this
 repository. The expected output is computed here with Python's json module.
 
@@ -71,7 +71,7 @@ class GoldenMessageTests(unittest.TestCase):
         if BUILD.exists():
             shutil.rmtree(BUILD)
 
-    def run_board(self, board):
+    def test_runtime_reads_the_golden_messages(self):
         source = (Path(__file__).parent / "golden_messages.cpp").read_text(encoding="utf-8")
         source = source.replace("// PRODUCTION_CONFIGURATION_TYPES",
                                 declaration(SHARED / "include" / "riot2" / "DeviceConfiguration.h"))
@@ -83,9 +83,9 @@ class GoldenMessageTests(unittest.TestCase):
         source = source.replace("// PRODUCTION_SERIALIZE_CONFIGURATIONS",
                                 body(SHARED / "src" / "DeviceConfigurationJson.cpp",
                                      "String riot2::serializeDeviceConfigurations("))
-        main = board / "src" / "main.cpp"
+        runtime = SHARED / "src" / "NodeRuntime.cpp"
         source = source.replace("// PRODUCTION_HANDLERS", "\n".join(
-            body(main, s) for s in ("void handleCommand(", "void handleConfigurationMessage(")))
+            body(runtime, s) for s in ("void NodeRuntime::handleCommand(", "void NodeRuntime::handleConfigurationMessage(")))
         data = ["const char* const kGoldenCommands[] = {"]
         data += [literal(golden(f"messages/command-{t}.json")) + "," for t in TYPES]
         data += ["};",
@@ -94,15 +94,8 @@ class GoldenMessageTests(unittest.TestCase):
                  "const char* const kGoldenNodeConfiguration = "
                  + literal(golden("http/node-configuration.json")) + ";"]
         source = source.replace("// GOLDEN_DATA", "\n".join(data))
-        output = compile_and_run("golden_messages_" + board.name.split(".")[2].lower(), source,
-                                 [arduino_json_headers()])
+        output = compile_and_run("golden_messages", source, [arduino_json_headers()])
         self.assertEqual(expected_output(), output.splitlines())
-
-    def test_m5core2_reads_the_golden_messages(self):
-        self.run_board(CORE)
-
-    def test_m5dial_reads_the_golden_messages(self):
-        self.run_board(DIAL)
 
 
 if __name__ == "__main__":

@@ -77,6 +77,12 @@ model in `RIoT2Shared/src/views` with each `tests/views/*_test.cpp`, against the
 
 ## Firmware behavior supplied here
 
+`riot2::NodeRuntime` (`NodeRuntime.h`) is the node lifecycle both firmwares run: a board's
+`main.cpp` calls `NodeRuntime::startOtaTrial()` first in `setup()`, sets up its hardware, calls
+`begin(manifestJson, hooks)` and then `loop()`, and reacts through `NodeRuntimeHooks` (its views'
+templates, applying a configuration, commands, OTA and BLE events). Everything below happens in the
+runtime:
+
 - Settings are saved in ESP32 NVS namespace `riot2node` by the provisioning portal (`GET /`,
   `POST /save`).
 - MQTT topics are centralized in `RIoT2Shared/include/riot2/Topics.h`, mirroring
@@ -88,9 +94,12 @@ model in `RIoT2Shared/src/views` with each `tests/views/*_test.cpp`, against the
   failed fetches retry after 1, 2, 4, 8, 16, then 30 seconds.
 - The reserved command id `system.ota` downloads and flashes a firmware `.bin` URL.
 - `OtaRollback` rolls a new OTA image back to the previous one unless it fetches its configuration
-  within 3 minutes (`RIOT2_OTA_VERIFY_TIMEOUT_MS`), or if it crashes or restarts first. Firmware
-  calls `OtaRollback::begin()` first in `setup()` and `OtaRollback::markHealthy()` after a
-  successful configuration fetch. While an image is on trial, `system.ota` is refused.
+  within 3 minutes (`RIOT2_OTA_VERIFY_TIMEOUT_MS`), or if it crashes or restarts first.
+  `NodeRuntime::startOtaTrial()` calls `OtaRollback::begin()`, and the runtime calls
+  `OtaRollback::markHealthy()` after a successful configuration fetch. While an image is on trial,
+  `system.ota` is refused.
+- Grove peripherals registered with `PeripheralFactory` get every command and configuration; the
+  BLE scanner starts once a configuration has a BLE-consuming view, with Wi-Fi modem sleep on.
 - Command and report templates carry `type`, RIoT2.Core's `ValueType`, as a number
   (`riot2::ValueType`), both when parsed from the orchestrator and when served to it.
 - `ConfigTemplateServer` serves `GET /api/device/configuration/templates` so the orchestrator can

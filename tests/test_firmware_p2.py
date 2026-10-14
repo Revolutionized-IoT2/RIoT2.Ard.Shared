@@ -23,11 +23,11 @@ class FirmwareP2Tests(unittest.TestCase):
                                 declaration(SHARED / "src" / "GpioPeripheral.cpp"))
         maps = []
         for root, name in [(CORE, "kM5Core2GroveMap"), (DIAL, "kM5DialGroveMap")]:
-            text = (root / "src" / "main.cpp").read_text(encoding="utf-8")
+            text = (root / "src" / "BoardPeripherals.cpp").read_text(encoding="utf-8")
             start = text.index("constexpr GpioPinMap " + name)
             maps.append(text[start:text.index(";", start) + 1])
         source = source.replace("// PRODUCTION_MAPS", "\n".join(maps))
-        template = (CORE / "src" / "main.cpp").read_text(encoding="utf-8")
+        template = (CORE / "src" / "BoardPeripherals.cpp").read_text(encoding="utf-8")
         gpio_start = template.index('"RIoT2.Ard.M5Core2.Node.GpioPeripheral",')
         gpio_end = template.index("return config;", gpio_start)
         self.assertIn('cmd.address = "B1";', template[gpio_start:gpio_end])
@@ -47,10 +47,12 @@ class FirmwareP2Tests(unittest.TestCase):
         source = (Path(__file__).parent / "configuration_retry.cpp").read_text(encoding="utf-8")
         source = source.replace("// PRODUCTION_CLASS",
                                 declaration(SHARED / "include" / "riot2" / "ConfigurationRetry.h"))
+        # NodeRuntime requests from the MQTT callback and fetches from loop(), for both boards.
+        runtime = (SHARED / "src" / "NodeRuntime.cpp").read_text(encoding="utf-8")
+        self.assertIn("_configurationRetry.request(apiBaseUrl);", runtime)
+        self.assertIn("_configurationRetry.loop(_wifi.isConnected()", runtime)
         for root in (CORE, DIAL):
-            main = (root / "src" / "main.cpp").read_text(encoding="utf-8")
-            self.assertIn("configurationRetry.request(apiBaseUrl);", main)
-            self.assertIn("configurationRetry.loop(wifi.isConnected()", main)
+            self.assertNotIn("ConfigurationRetry", (root / "src" / "main.cpp").read_text(encoding="utf-8"), root.name)
         compile_and_run("configuration_retry", source)
 
     def test_ota_rollback(self):
@@ -66,15 +68,18 @@ class FirmwareP2Tests(unittest.TestCase):
             self.assertIn("endTrial()", body(SHARED / "src" / "OtaRollback.cpp", function), function)
         updater = body(SHARED / "src" / "OtaUpdater.cpp", "bool OtaUpdater::performUpdate(")
         self.assertLess(updater.index("OtaRollback::isPendingVerify()"), updater.index("httpUpdate.update("))
+        runtime = SHARED / "src" / "NodeRuntime.cpp"
+        self.assertIn("OtaRollback::begin();", body(runtime, "void NodeRuntime::startOtaTrial()"))
+        fetch = body(runtime, "void NodeRuntime::loop()")
+        fetch = fetch[fetch.index("_configurationRetry.loop("):]
+        self.assertLess(fetch.index("requestConfiguration("), fetch.index("OtaRollback::markHealthy();"))
+        self.assertEqual(runtime.read_text(encoding="utf-8").count("OtaRollback::markHealthy();"), 1)
         for root in (CORE, DIAL):
             main = (root / "src" / "main.cpp").read_text(encoding="utf-8")
             setup = body(root / "src" / "main.cpp", "void setup()")
-            loop = body(root / "src" / "main.cpp", "void loop()")
-            self.assertLess(setup.index("OtaRollback::begin();"), setup.index("PeripheralFactory"), root.name)
-            fetch = loop[loop.index("configurationRetry.loop("):]
-            self.assertLess(fetch.index("requestConfiguration("), fetch.index("OtaRollback::markHealthy();"),
+            self.assertLess(setup.index("riot2::NodeRuntime::startOtaTrial();"), setup.index("registerPeripherals();"),
                             root.name)
-            self.assertEqual(main.count("OtaRollback::markHealthy();"), 1, root.name)
+            self.assertNotIn("OtaRollback::", main, root.name)
             # The rollback-enabled bootloader comes with the platform, so the platform is pinned.
             ini = (root / "platformio.ini").read_text(encoding="utf-8")
             self.assertRegex(ini, r"(?m)^platform = espressif32@\d+\.\d+\.\d+$", root.name)

@@ -4,6 +4,15 @@ All notable documentation changes to `RIoT2.Ard.Shared`.
 
 ## [Unreleased]
 
+- Added `riot2::NodeRuntime` ([I18](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i18-firmware-noderuntime-m), plan M5 step 3, ADR 0011): the node lifecycle the
+  M5Core2 and M5Dial `main.cpp` files duplicated (NVS settings, provisioning portal, Wi-Fi, MQTT and
+  the orchestrator handshake, the deferred configuration fetch with retry, the template server,
+  SNTP, `system.ota` and the OTA trial, Grove peripherals and the BLE start-up). Boards react through
+  `NodeRuntimeHooks`.
+- The golden-message test runs `NodeRuntime`'s handlers once instead of each board's; the
+  reconnect, configuration-retry and OTA-rollback tests check `NodeRuntime`, and the GPIO test reads
+  the boards' `BoardPeripherals.cpp`.
+
 - Added the view models ([I17](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i17-firmware-view-models-m), plan M5 steps 1–2): `riot2::views`
   `AlertModel`, `BleModel`, `ButtonModel`, `ClockModel`, `ColorSchemeModel`, `NotificationModel`,
   `PercentageModel`, `SceneSelectorModel`, `SliderModel`, `TimerModel`, `ToggleModel` and
