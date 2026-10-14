@@ -4,6 +4,9 @@ All notable documentation changes to `RIoT2.Ard.Shared`.
 
 ## [Unreleased]
 
+- Added `Topics::commandResult()` and `Topics::status()`, mirroring the topics that RIoT2.Core 1.6.0
+  reserves ([I14](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i14-additive-contract-release-s)). Nothing publishes on them yet.
+
 - Added `OtaRollback` ([I13](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-0-1.md#i13-firmware-ota-rollback-s), backlog item 6): it overrides `verifyRollbackLater()`, so a
   new OTA image starts on trial. `markHealthy()` marks it valid; otherwise an `esp_timer` rolls it
   back after `RIOT2_OTA_VERIFY_TIMEOUT_MS` (default 180000), even when `loop()` hangs. A crash or

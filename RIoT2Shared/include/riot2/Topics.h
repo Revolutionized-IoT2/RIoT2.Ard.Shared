@@ -25,6 +25,16 @@ inline String configuration(const String& nodeId) {
     return "riot2/node/" + nodeId + "/configuration";
 }
 
+// Reserved by RIoT2.Core 1.6.0 for command results (design 7.1) and the retained configuration
+// status (design 7.2). The firmware publishes on them once it supports those features.
+inline String commandResult(const String& nodeId) {
+    return "riot2/node/" + nodeId + "/command/result";
+}
+
+inline String status(const String& nodeId) {
+    return "riot2/node/" + nodeId + "/status";
+}
+
 inline const char* orchestratorOnline() {
     return "riot2/orchestrator/online";
 }
