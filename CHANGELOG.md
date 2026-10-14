@@ -4,6 +4,18 @@ All notable documentation changes to `RIoT2.Ard.Shared`.
 
 ## [Unreleased]
 
+- Added `OtaRollback` ([I13](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-0-1.md#i13-firmware-ota-rollback-s), backlog item 6): it overrides `verifyRollbackLater()`, so a
+  new OTA image starts on trial. `markHealthy()` marks it valid; otherwise an `esp_timer` rolls it
+  back after `RIOT2_OTA_VERIFY_TIMEOUT_MS` (default 180000), even when `loop()` hangs. A crash or
+  restart during the trial rolls back too. `OtaUpdater` refuses a new update while an image is on
+  trial. The build flag `RIOT2_OTA_TEST_NEVER_HEALTHY` makes a test image that always rolls back.
+- Changed (divergence C2 fixed): `CommandTemplate::type` and `ReportTemplate::type` are `int`
+  (`riot2::ValueType`), parsed from and served as a number, as RIoT2.Core sends them.
+  `CommandTemplate::valueType` is removed; the template server no longer sends it. Consumers set
+  `type = riot2::ValueType::Number` and so on instead of `"2"`.
+- The golden test checks the numeric `type` of commands and reports, and the template server's
+  output.
+
 - Added `tests/test_golden_messages.py` ([I05](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-0-1.md#i05-golden-files-and-route-contract-m)):
   the M5Core2 and M5Dial command and configuration handlers and `OrchestratorClient::parseConfiguration`
   read the golden files from RIoT2.Core, and the result is compared with Python's reading of the

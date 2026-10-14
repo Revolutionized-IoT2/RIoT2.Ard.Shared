@@ -12,12 +12,22 @@
 // Free-form string dictionary helper shared by ReportTemplate/DeviceConfiguration.
 using ParameterList = std::vector<std::pair<String, String>>;
 
+namespace riot2 {
+// RIoT2.Core.Enums.ValueType: the `type` of a command or report template, a number on the wire.
+namespace ValueType {
+constexpr int Boolean = 0;
+constexpr int Text = 1;
+constexpr int Number = 2;
+constexpr int Entity = 3;
+constexpr int TextArray = 4;
+}  // namespace ValueType
+}  // namespace riot2
+
 struct CommandTemplate {
     String id;
-    String type;
+    int type = riot2::ValueType::Boolean;
     String name;
     String address;
-    int valueType = 0;  // mirrors RIoT2.Core.Enums.ValueType
     bool model = false;
 };
 
@@ -32,7 +42,7 @@ inline String findParameter(const ParameterList& params, const String& key, cons
 
 struct ReportTemplate {
     String id;
-    String type;
+    int type = riot2::ValueType::Boolean;
     String name;
     String address;
     ParameterList parameters;

@@ -4,9 +4,17 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 
+#include <riot2/OtaRollback.h>
 #include <riot2/TlsRootCa.h>
 
 bool OtaUpdater::performUpdate(const String& url) {
+    if (OtaRollback::isPendingVerify()) {
+        // The other slot holds the previous, known-good image: the one a rollback returns to.
+        // Writing over it before this image has proved itself would leave nothing to go back to.
+        Serial.println("[OTA] This image is still on trial (not yet marked valid), refusing a new update");
+        return false;
+    }
+
     if (WiFi.status() != WL_CONNECTED) {
         Serial.println("[OTA] Wi-Fi not connected, aborting update");
         return false;

@@ -15,7 +15,9 @@ namespace OtaUpdater {
 // is logged before falling back to an insecure TLS connection. Blocks for the
 // duration of the download/flash (no MQTT/UI servicing meanwhile). On
 // success the device reboots automatically and this function never returns;
-// on failure it returns false and the current firmware keeps running.
+// on failure it returns false and the current firmware keeps running. The new
+// image then starts on trial (see OtaRollback.h). While the running image is
+// itself still on trial, the update is refused and this returns false.
 bool performUpdate(const String& url);
 
 }  // namespace OtaUpdater

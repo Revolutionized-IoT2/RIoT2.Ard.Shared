@@ -55,15 +55,13 @@ def expected_output():
         lines.append(f"device|{device['id']}|{device['name']}|{device['classFullName']}|"
                      + parameters(device.get("deviceParameters")))
         for command in device.get("commandTemplates") or []:
-            # Divergence C2 (.github docs/contracts/configuration.md): firmware reads `type` as a
-            # string and `valueType` as a number, but the orchestrator sends a numeric `type` and
-            # no `valueType`. Update this when C2 is fixed.
+            # `type` is RIoT2.Core's ValueType as a number (divergence C2, fixed in I13).
             model = 1 if command.get("model") is True else 0
             lines.append(f"  command|{command['id']}|{command['name']}|{command['address']}"
-                         f"|model={model}|type=|valueType=0")
+                         f"|model={model}|type={command.get('type', 0)}")
         for report in device.get("reportTemplates") or []:
             lines.append(f"  report|{report['id']}|{report['name']}|{report['address']}|"
-                         + parameters(report.get("parameters")))
+                         f"type={report.get('type', 0)}|" + parameters(report.get("parameters")))
     return lines
 
 
@@ -82,6 +80,9 @@ class GoldenMessageTests(unittest.TestCase):
         source = source.replace("// PRODUCTION_PARSE_CONFIGURATION",
                                 body(SHARED / "src" / "OrchestratorClient.cpp",
                                      "bool OrchestratorClient::parseConfiguration("))
+        source = source.replace("// PRODUCTION_SERIALIZE_CONFIGURATIONS",
+                                body(SHARED / "src" / "DeviceConfigurationJson.cpp",
+                                     "String riot2::serializeDeviceConfigurations("))
         main = board / "src" / "main.cpp"
         source = source.replace("// PRODUCTION_HANDLERS", "\n".join(
             body(main, s) for s in ("void handleCommand(", "void handleConfigurationMessage(")))

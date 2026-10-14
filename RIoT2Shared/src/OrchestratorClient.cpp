@@ -229,10 +229,9 @@ bool OrchestratorClient::parseConfiguration(const String& json, NodeConfiguratio
         for (JsonObject cmdJson : deviceJson["commandTemplates"].as<JsonArray>()) {
             CommandTemplate cmd;
             cmd.id = cmdJson["id"] | "";
-            cmd.type = cmdJson["type"] | "";
+            cmd.type = cmdJson["type"] | riot2::ValueType::Boolean;
             cmd.name = cmdJson["name"] | "";
             cmd.address = cmdJson["address"] | "";
-            cmd.valueType = cmdJson["valueType"] | 0;
             cmd.model = cmdJson["model"] | false;
             device.commandTemplates.push_back(cmd);
         }
@@ -240,7 +239,7 @@ bool OrchestratorClient::parseConfiguration(const String& json, NodeConfiguratio
         for (JsonObject reportJson : deviceJson["reportTemplates"].as<JsonArray>()) {
             ReportTemplate report;
             report.id = reportJson["id"] | "";
-            report.type = reportJson["type"] | "";
+            report.type = reportJson["type"] | riot2::ValueType::Boolean;
             report.name = reportJson["name"] | "";
             report.address = reportJson["address"] | "";
             for (JsonPair kv : reportJson["parameters"].as<JsonObject>()) {

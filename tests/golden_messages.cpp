@@ -19,6 +19,10 @@ struct OrchestratorClient {
     bool parseConfiguration(const String& json, NodeConfiguration& out);
 };
 // PRODUCTION_PARSE_CONFIGURATION
+namespace riot2 {
+String serializeDeviceConfigurations(const std::vector<DeviceConfiguration>& configs);
+}
+// PRODUCTION_SERIALIZE_CONFIGURATIONS
 
 // Board globals the handlers use.
 const char* const kOtaCommandId = "system.ota";
@@ -74,11 +78,28 @@ int main() {
         std::printf("device|%s|%s|%s|%s\n", device.id.c_str(), device.name.c_str(),
                     device.classFullName.c_str(), parameters(device.deviceParameters).c_str());
         for (const auto& command : device.commandTemplates)
-            std::printf("  command|%s|%s|%s|model=%d|type=%s|valueType=%d\n", command.id.c_str(),
+            std::printf("  command|%s|%s|%s|model=%d|type=%d\n", command.id.c_str(),
                         command.name.c_str(), command.address.c_str(), command.model ? 1 : 0,
-                        command.type.c_str(), command.valueType);
+                        command.type);
         for (const auto& report : device.reportTemplates)
-            std::printf("  report|%s|%s|%s|%s\n", report.id.c_str(), report.name.c_str(),
-                        report.address.c_str(), parameters(report.parameters).c_str());
+            std::printf("  report|%s|%s|%s|type=%d|%s\n", report.id.c_str(), report.name.c_str(),
+                        report.address.c_str(), report.type, parameters(report.parameters).c_str());
     }
+
+    // ConfigTemplateServer sends templates in the same shape: `type` as a number, no `valueType`.
+    JsonDocument served;
+    assert(!deserializeJson(served, riot2::serializeDeviceConfigurations(node.deviceConfigurations)));
+    size_t d = 0;
+    for (JsonObjectConst device : served.as<JsonArrayConst>()) {
+        const auto& parsed = node.deviceConfigurations[d++];
+        size_t c = 0, r = 0;
+        for (JsonObjectConst command : device["commandTemplates"].as<JsonArrayConst>()) {
+            assert(command["type"].is<int>() && command["type"].as<int>() == parsed.commandTemplates[c++].type);
+            assert(command["valueType"].isNull());
+        }
+        for (JsonObjectConst report : device["reportTemplates"].as<JsonArrayConst>())
+            assert(report["type"].is<int>() && report["type"].as<int>() == parsed.reportTemplates[r++].type);
+        assert(c == parsed.commandTemplates.size() && r == parsed.reportTemplates.size());
+    }
+    assert(d == node.deviceConfigurations.size());
 }

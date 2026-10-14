@@ -19,7 +19,6 @@ String riot2::serializeDeviceConfigurations(const std::vector<DeviceConfiguratio
             cmdObj["type"] = cmd.type;
             cmdObj["name"] = cmd.name;
             cmdObj["address"] = cmd.address;
-            cmdObj["valueType"] = cmd.valueType;
             cmdObj["model"] = cmd.model;
         }
 

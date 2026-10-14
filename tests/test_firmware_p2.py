@@ -52,6 +52,32 @@ class FirmwareP2Tests(unittest.TestCase):
             self.assertIn("configurationRetry.loop(wifi.isConnected()", main)
         compile_and_run("configuration_retry", source)
 
+    def test_ota_rollback(self):
+        # Backlog item 6: a new OTA image must earn its place, or the device rolls back.
+        rollback = (SHARED / "src" / "OtaRollback.cpp").read_text(encoding="utf-8")
+        # Without this override, initArduino() marks every image valid before setup() runs.
+        self.assertIn('extern "C" bool verifyRollbackLater() { return true; }', rollback)
+        # The deadline must not depend on loop() running: a hung image has to roll back too.
+        self.assertIn("esp_timer_start_once(deadline", rollback)
+        # Exactly one of markHealthy() and the deadline decides.
+        self.assertIn("return onTrial.exchange(false);", rollback)
+        for function in ("void rollBack(void*)", "void OtaRollback::markHealthy()"):
+            self.assertIn("endTrial()", body(SHARED / "src" / "OtaRollback.cpp", function), function)
+        updater = body(SHARED / "src" / "OtaUpdater.cpp", "bool OtaUpdater::performUpdate(")
+        self.assertLess(updater.index("OtaRollback::isPendingVerify()"), updater.index("httpUpdate.update("))
+        for root in (CORE, DIAL):
+            main = (root / "src" / "main.cpp").read_text(encoding="utf-8")
+            setup = body(root / "src" / "main.cpp", "void setup()")
+            loop = body(root / "src" / "main.cpp", "void loop()")
+            self.assertLess(setup.index("OtaRollback::begin();"), setup.index("PeripheralFactory"), root.name)
+            fetch = loop[loop.index("configurationRetry.loop("):]
+            self.assertLess(fetch.index("requestConfiguration("), fetch.index("OtaRollback::markHealthy();"),
+                            root.name)
+            self.assertEqual(main.count("OtaRollback::markHealthy();"), 1, root.name)
+            # The rollback-enabled bootloader comes with the platform, so the platform is pinned.
+            ini = (root / "platformio.ini").read_text(encoding="utf-8")
+            self.assertRegex(ini, r"(?m)^platform = espressif32@\d+\.\d+\.\d+$", root.name)
+
     def test_mqtt_complete_bounded_json(self):
         # Reuse an already-installed ArduinoJson; never download dependencies.
         headers = list((CORE / ".pio" / "libdeps").glob("*/ArduinoJson/src/ArduinoJson.h"))

@@ -36,7 +36,8 @@ python .\tests\test_golden_messages.py
 - Build: build both consumers. This repository has no standalone PlatformIO environment.
 - Test: the Python tests compile selected production code with host fakes; the MQTT and golden
   tests need ArduinoJson headers already present under a board's `.pio\libdeps`. The golden test
-  reads `../RIoT2.Core/contracts/golden` (CI clones RIoT2.Core) and pins divergence C2.
+  reads `../RIoT2.Core/contracts/golden` (CI clones RIoT2.Core) and pins the numeric template
+  `type` in the parser and in `DeviceConfigurationJson.cpp`.
 - Run: no local service or device run command exists here.
 - CI: `.github/workflows/ci.yml` builds M5Core2, M5Dial and WiegandI2C against this checkout and
   runs the native tests with `g++` on every push ([CI guide](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/guides/ci.md)). The tests must also pass with
@@ -55,6 +56,7 @@ python .\tests\test_golden_messages.py
 | `RIoT2Shared/include/riot2/ProvisioningPortal.h`, `src/ProvisioningPortal.cpp` | SoftAP captive portal (`GET /`, `POST /save`) |
 | `RIoT2Shared/include/riot2/ConfigTemplateServer.h`, `src/ConfigTemplateServer.cpp` | `GET /api/device/configuration/templates` |
 | `RIoT2Shared/include/riot2/OtaUpdater.h`, `src/OtaUpdater.cpp` | `system.ota` firmware download and flash |
+| `RIoT2Shared/include/riot2/OtaRollback.h`, `src/OtaRollback.cpp` | Trial of a new OTA image: marks it valid after the first configuration fetch, or rolls it back on a deadline |
 | `RIoT2Shared/include/riot2/BleScanner.h`, `src/BleScanner.cpp` | Shared BLE scanner and callbacks |
 | `RIoT2Shared/include/riot2/GpioPeripheral.h`, `src/GpioPeripheral.cpp` | Shared Grove GPIO peripheral |
 | `scripts/generate_manifest.py` | PlatformIO pre-build manifest generation |
@@ -78,6 +80,11 @@ python .\tests\test_golden_messages.py
 - Keep firmware MQTT topics mirrored from `RIoT2.Core/Constants.cs`; update hub contracts when a
   cross-repository contract changes.
 - Do not assign `system.ota` to a view command template; it is reserved for firmware OTA.
+- Every firmware calls `OtaRollback::begin()` first in `setup()` and `OtaRollback::markHealthy()`
+  only after `requestConfiguration()` succeeded. Don't mark an image healthy earlier, and don't
+  restart a device on purpose while `OtaRollback::isPendingVerify()`: a restart rolls back.
+- Template `type` is an `int` (`riot2::ValueType`), as in RIoT2.Core. Don't add a separate
+  `valueType`.
 - Do not read or edit vendored `.pio\libdeps` content except to use restored headers for tests.
 - Do not store real Wi-Fi, MQTT, node ids, broker addresses or certificates in docs or examples.
 - Keep provisioning settings aligned with NVS namespace `riot2node` and the hub firmware settings
@@ -93,18 +100,17 @@ python .\tests\test_golden_messages.py
   That works but is listed as divergence D5.
 - Configuration responses are capped at 32 KiB. Fetch retries are scheduled in the main loop after
   1, 2, 4, 8, 16 and then 30 seconds.
-- Firmware parses template `type` as `String`, while the orchestrator sends a numeric `type` and
-  does not send `valueType`; downloaded numeric type information is lost (configuration divergence
-  C2).
 - HTTPS MQTT, configuration and OTA use `RIOT2_ROOT_CA_PEM` when compiled in. Without it the code
   logs a warning and falls back to `setInsecure()`.
+- OTA rollback depends on the bootloader and Arduino core of the pinned `espressif32` platform
+  (Arduino-ESP32 2.0.17, built with `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`). Check both, and that
+  `verifyRollbackLater()` still exists, before you change the platform version in a board's
+  `platformio.ini`.
 - `ConfigTemplateServer` serves firmware templates at `/api/device/configuration/templates`, but
   the current hub firmware HTTP section only mentions provisioning endpoints.
 
 ## Related work
 
-- Backlog item [6](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/backlog/open-issues.md):
-  OTA rollback policy.
 - Backlog item [15](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/backlog/open-issues.md):
   duplicated firmware views and runtime wiring.
 - Optional hardening [S9](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/backlog/optional-hardening.md):

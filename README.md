@@ -66,9 +66,10 @@ python .\tests\test_golden_messages.py
 ```
 
 `test_golden_messages.py` runs both boards' MQTT handlers and `OrchestratorClient::parseConfiguration`
-on the [golden files](https://github.com/Revolutionized-IoT2/RIoT2.Core/blob/main/contracts/golden/README.md); RIoT2.Core must be checked out next to this repository. The MQTT regression uses ArduinoJson headers already restored under a board project's
+on the [golden files](https://github.com/Revolutionized-IoT2/RIoT2.Core/blob/main/contracts/golden/README.md), and checks that the template server writes the same template shape; RIoT2.Core must be checked out next to this repository. The MQTT regression uses ArduinoJson headers already restored under a board project's
 `.pio\libdeps` directory. It does not download dependencies. Generated native-test files are kept
-under `tests\.host-build`.
+under `tests\.host-build`. On Windows, run the tests from a Visual Studio developer shell (they use
+`cl`), or set `CXX` to another C++14 compiler.
 
 ## Firmware behavior supplied here
 
@@ -82,6 +83,12 @@ under `tests\.host-build`.
   `{apiBaseUrl}api/Nodes/{id}/configuration`. Responses larger than 32 KiB are rejected, and
   failed fetches retry after 1, 2, 4, 8, 16, then 30 seconds.
 - The reserved command id `system.ota` downloads and flashes a firmware `.bin` URL.
+- `OtaRollback` rolls a new OTA image back to the previous one unless it fetches its configuration
+  within 3 minutes (`RIOT2_OTA_VERIFY_TIMEOUT_MS`), or if it crashes or restarts first. Firmware
+  calls `OtaRollback::begin()` first in `setup()` and `OtaRollback::markHealthy()` after a
+  successful configuration fetch. While an image is on trial, `system.ota` is refused.
+- Command and report templates carry `type`, RIoT2.Core's `ValueType`, as a number
+  (`riot2::ValueType`), both when parsed from the orchestrator and when served to it.
 - `ConfigTemplateServer` serves `GET /api/device/configuration/templates` so the orchestrator can
   discover the board's view and peripheral templates.
 
