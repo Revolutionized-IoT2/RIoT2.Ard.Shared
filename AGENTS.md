@@ -94,8 +94,8 @@ python .\tests\test_golden_messages.py
 
 ## Pitfalls
 
-- Firmware publishes retained online/offline/LWT messages, but delivery is still QoS 0 through
-  PubSubClient. This is divergence D1 in the hub MQTT contract.
+- Firmware publishes retained online/offline/LWT messages, as the .NET node does since Core 1.8.0
+  (divergence D1, fixed in I16), but delivery is still QoS 0 through PubSubClient.
 - `OrchestratorClient` fetches `{apiBaseUrl}api/Nodes/{id}/configuration` with a capital `Nodes`.
   That works but is listed as divergence D5.
 - Configuration responses are capped at 32 KiB. Fetch retries are scheduled in the main loop after
