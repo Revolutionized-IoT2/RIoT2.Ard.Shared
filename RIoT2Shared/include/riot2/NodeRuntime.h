@@ -7,11 +7,13 @@
 
 #include "riot2/BleTypes.h"
 #include "riot2/Command.h"
+#include "riot2/CommandResults.h"
 #include "riot2/ConfigTemplateServer.h"
 #include "riot2/ConfigurationRetry.h"
 #include "riot2/DeviceConfiguration.h"
 #include "riot2/MqttConnection.h"
 #include "riot2/NodeConfig.h"
+#include "riot2/NodeStatus.h"
 #include "riot2/OrchestratorClient.h"
 #include "riot2/PeripheralManager.h"
 #include "riot2/ProvisioningPortal.h"
@@ -30,8 +32,10 @@ struct NodeRuntimeHooks {
     // A fetched configuration, before the peripherals are rebuilt. Rebuild the views and return
     // true when a view consumes BLE events: the runtime then starts the BLE scanner.
     std::function<bool(const NodeConfiguration&)> onConfiguration;
-    // A command for the views. system.ota never gets here; peripherals get every command too.
-    std::function<void(const Command&)> onCommand;
+    // A command for the views; return true when a view has its id. system.ota never gets here;
+    // peripherals get every command too. A command no view or peripheral has is answered
+    // `unknownCommand` (design 7.1).
+    std::function<bool(const Command&)> onCommand;
     // The orchestrator announced a configuration; the fetch runs from loop().
     std::function<void()> onConfigurationRequested;
     // system.ota: about to download `url` (the device restarts on success), or the update failed.
@@ -47,8 +51,10 @@ struct NodeRuntimeHooks {
 // The node lifecycle both firmwares share (ADR 0011, plan M5 step 3): NVS settings, the
 // provisioning portal, Wi-Fi, MQTT and the orchestrator handshake, the configuration fetch with
 // retry, the template server, SNTP, OTA (system.ota and the rollback trial), Grove peripherals and
-// the BLE scanner. A board's main.cpp sets up its hardware and views, calls begin() and loop(),
-// and reacts through NodeRuntimeHooks.
+// the BLE scanner. Since firmware 0.5.0 it also answers correlated commands with a result and
+// publishes the retained configuration status, and advertises both (designs 7.1 and 7.2).
+// A board's main.cpp sets up its hardware and views, calls begin() and loop(), and reacts through
+// NodeRuntimeHooks.
 class NodeRuntime {
 public:
     enum class Mode { Provisioning, Normal };
@@ -69,6 +75,8 @@ public:
     MqttConnection& mqtt() { return _mqtt; }
     const ProvisioningPortal& provisioning() const { return _provisioning; }
     bool bleActive() const { return _bleActive; }
+    // The node's view of its configuration, as published on riot2/node/{id}/status.
+    const riot2::NodeStatus& configurationStatus() const { return _status; }
 
     // For the views' reports.
     void publishReport(const Report& report);
@@ -98,11 +106,28 @@ private:
     ConfigurationRetry _configurationRetry;
     // Started once, when a configuration first has a BLE-consuming view; never stopped.
     bool _bleActive = false;
+    // Design 7.2: published retained on riot2/node/{id}/status.
+    NodeStatus _status;
+    // The configuration's devices whose class is neither a view nor a peripheral of this build.
+    std::vector<FailedDevice> _failedDevices;
+    // The hash of the configuration command the pending fetch is for; empty from an orchestrator
+    // before 1.5.0.
+    String _pendingHash;
+    // Design 7.1: the outcomes of the last 16 correlated commands, for redeliveries.
+    CorrelationRing _correlations;
 
     void handleCommand(const String& topic, const String& payload);
     void handleOrchestratorOnline(const String& topic, const String& payload);
     void handleConfigurationMessage(const String& topic, const String& payload);
     void handleConfiguration(const NodeConfiguration& configuration);
+    void configurationFetched(bool fetched);
+    void publishStatus();
+    // Remembers the outcome of a correlated command for redeliveries, then publishes it.
+    void completeCommand(const String& correlationId, const String& commandId, const char* status,
+                         const String& error);
+    // No-op without a correlationId: an orchestrator before 1.4.0 expects no result.
+    void publishCommandResult(const String& correlationId, const String& commandId, const char* status,
+                              const String& error);
 };
 
 }  // namespace riot2

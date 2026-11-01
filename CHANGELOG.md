@@ -4,6 +4,27 @@ All notable documentation changes to `RIoT2.Ard.Shared`.
 
 ## [Unreleased]
 
+- Added command results and the configuration status ([I19](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i19-firmware-results-and-desired-state-m), designs 7.1 phase 3 and 7.2 phase 5),
+  released with M5Core2 and M5Dial `0.5.0`:
+  - `NodeRuntime` advertises `command-result/1` and `desired-state/1`, answers every command with
+    a `correlationId` (`executed`, `unknownCommand`, `rejected`, `failed`, `duplicate`) from a
+    16-entry `CorrelationRing` (`CommandResults.h`), and publishes the retained `NodeStatus`
+    (`NodeStatus.h`) on every connect, before the presence, and on every change.
+  - A configuration command for the applied hash republishes the status instead of fetching; a
+    repeat of the hash being fetched keeps the retry backoff (`ConfigurationRetry::pending()`,
+    `cancel()`). `OrchestratorClient` sends `If-None-Match`, treats `304` as unchanged, parses
+    `revision` and `hash`, and reports `lastError()`.
+  - MQTT subscriptions are QoS 1. `MqttConnection` has `publishJson`, `maxPayloadBytes`,
+    `onConnected` and `setCapabilities`.
+  - `system.ota` restarts after reporting: `OtaUpdater::performUpdate` takes an `onInstalled`
+    callback, and a correlated update's id is kept in NVS (`otaCorr`) across the restart.
+  - `NodeRuntimeHooks::onCommand` returns whether a view had the command id (breaking for boards).
+  - Divergence D5 is fixed: the configuration is fetched from `api/nodes/…`.
+  - An empty configuration response no longer counts as unchanged.
+- Added `tests/test_desired_state.py` and `tests/runtime_harness.h`; the golden test now also
+  checks the hashed configuration command and configuration, the correlated command, the results
+  and the status. The host `String` has `substring` and `write`.
+
 - Added `riot2::NodeRuntime` ([I18](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i18-firmware-noderuntime-m), plan M5 step 3, ADR 0011): the node lifecycle the
   M5Core2 and M5Dial `main.cpp` files duplicated (NVS settings, provisioning portal, Wi-Fi, MQTT and
   the orchestrator handshake, the deferred configuration fetch with retry, the template server,

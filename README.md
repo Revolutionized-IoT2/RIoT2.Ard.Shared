@@ -64,11 +64,14 @@ python .\tests\test_firmware_p1.py
 python .\tests\test_firmware_p2.py
 python .\tests\test_firmware_architecture.py
 python .\tests\test_golden_messages.py
+python .\tests\test_desired_state.py
 python .\tests\test_view_models.py
 ```
 
 `test_golden_messages.py` runs both boards' MQTT handlers and `OrchestratorClient::parseConfiguration`
-on the [golden files](https://github.com/Revolutionized-IoT2/RIoT2.Core/blob/main/contracts/golden/README.md), and checks that the template server writes the same template shape; RIoT2.Core must be checked out next to this repository. The MQTT regression uses ArduinoJson headers already restored under a board project's
+on the [golden files](https://github.com/Revolutionized-IoT2/RIoT2.Core/blob/main/contracts/golden/README.md), checks that the template server writes the same template shape, and checks the command results and the status against the golden ones; RIoT2.Core must be checked out next to this repository. `test_desired_state.py` runs `NodeRuntime`'s
+handlers on `tests/runtime_harness.h` (shared with the golden test): the firmware rows of the
+desired-state compatibility matrix, the command result rules and the status packet budget. The MQTT regression uses ArduinoJson headers already restored under a board project's
 `.pio\libdeps` directory. It does not download dependencies. `test_view_models.py` compiles every
 model in `RIoT2Shared/src/views` with each `tests/views/*_test.cpp`, against the `Arduino.h` shim in
 `tests/host` (a model without a test fails it). Generated native-test files are kept under
@@ -88,11 +91,26 @@ runtime:
 - MQTT topics are centralized in `RIoT2Shared/include/riot2/Topics.h`, mirroring
   `RIoT2.Core/Constants.cs`.
 - Firmware publishes retained online/offline messages and retained last wills through
-  PubSubClient at QoS 0.
-- Configuration messages contain `apiBaseUrl`; firmware fetches
-  `{apiBaseUrl}api/Nodes/{id}/configuration`. Responses larger than 32 KiB are rejected, and
-  failed fetches retry after 1, 2, 4, 8, 16, then 30 seconds.
-- The reserved command id `system.ota` downloads and flashes a firmware `.bin` URL.
+  PubSubClient, which publishes at QoS 0 only. It subscribes to its command, configuration and
+  `riot2/orchestrator/online` topics at QoS 1. The online message advertises the capabilities
+  `command-result/1` and `desired-state/1`.
+- A command with a `correlationId` is answered on `riot2/node/{id}/command/result` (`CommandResults.h`):
+  `executed` when a view (the `onCommand` hook returns true) or peripheral has its id,
+  `unknownCommand` when none has, `rejected` before the first configuration or while one is fetched,
+  `failed` for a failed `system.ota`. The last 16 outcomes answer redeliveries (`duplicate` for an
+  executed one) without running them again.
+- The retained configuration status (`NodeStatus.h`) goes to `riot2/node/{id}/status` on every
+  connect, before the presence, and on every change: `applying` until the first configuration,
+  `applied` with its revision, hash and up to four devices whose class the build lacks, or `failed`
+  with the reason.
+- Configuration messages contain `apiBaseUrl`, and from Orchestrator 1.5.0 `revision` and `hash`.
+  A message for the applied hash only republishes the status. Otherwise firmware fetches
+  `{apiBaseUrl}api/nodes/{id}/configuration` with `If-None-Match` (a `304` counts as unchanged).
+  Responses larger than 32 KiB are rejected, and failed fetches retry after 1, 2, 4, 8, 16, then
+  30 seconds.
+- The reserved command id `system.ota` downloads and flashes a firmware `.bin` URL. A correlated
+  one is answered `executed` when the image is installed, before the restart, and its id is kept in
+  NVS (`otaCorr`), so its redelivery after the restart is `duplicate`.
 - `OtaRollback` rolls a new OTA image back to the previous one unless it fetches its configuration
   within 3 minutes (`RIOT2_OTA_VERIFY_TIMEOUT_MS`), or if it crashes or restarts first.
   `NodeRuntime::startOtaTrial()` calls `OtaRollback::begin()`, and the runtime calls

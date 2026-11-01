@@ -1,11 +1,14 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 #include <PubSubClient.h>
 #include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 
 #include <functional>
+#include <utility>
+#include <vector>
 
 #include <riot2/NodeConfig.h>
 #include <riot2/Report.h>
@@ -20,9 +23,9 @@ enum class MqttState {
 //
 // Handles the RIoT2 node lifecycle: connects with a Last Will and Testament
 // of {"isOnline": false} on riot2/node/{id}/online, retries with backoff,
-// publishes the NodeOnlineMessage on (re)connect, and subscribes to
+// publishes the NodeOnlineMessage on (re)connect, and subscribes at QoS 1 to
 // riot2/orchestrator/online + riot2/node/{id}/configuration +
-// riot2/node/{id}/command.
+// riot2/node/{id}/command. PubSubClient publishes at QoS 0 only.
 // Invalid broker URLs (empty host, empty/non-numeric/out-of-range explicit
 // port) are logged and leave MQTT disconnected.
 //
@@ -52,7 +55,7 @@ public:
     void publishReport(const Report& report);
 
     // Publishes the retained NodeOnlineMessage ({"name","isOnline":true,
-    // "nodeType"}) to riot2/node/{id}/online. Called automatically on every
+    // "nodeType","nodeBaseUrl","manifest","capabilities"}) to riot2/node/{id}/online. Called automatically on every
     // (re)connect, and also exposed publicly so the app can re-announce in
     // response to an inbound riot2/orchestrator/online message, per the
     // corrected handshake: orchestrator/online (empty) -> node re-publishes
@@ -60,9 +63,23 @@ public:
     // with {"apiBaseUrl": ...}.
     void publishOnline();
 
+    // Publishes a JSON document on `topic` (e.g. the command result or the retained
+    // configuration status). Returns false, and logs why, when not connected or it doesn't fit
+    // MQTT_MAX_PACKET_SIZE.
+    bool publishJson(const String& topic, const JsonDocument& doc, bool retained);
+
+    // The largest JSON payload that fits one packet on `topic`.
+    size_t maxPayloadBytes(const String& topic);
+
     void onCommand(MessageCallback callback) { _commandCallback = callback; }
     void onOrchestratorOnline(MessageCallback callback) { _orchestratorCallback = callback; }
     void onConfigurationMessage(MessageCallback callback) { _configurationCallback = callback; }
+    // Every (re)connect, after the subscriptions and before the presence is published.
+    void onConnected(std::function<void()> callback) { _connectedCallback = callback; }
+
+    // Listed in the NodeOnlineMessage's `capabilities` (design 7.1/7.2). The strings are stored
+    // as-is, so they must be string constants. Call before begin().
+    void setCapabilities(std::vector<const char*> capabilities) { _capabilities = std::move(capabilities); }
 
     // Nested verbatim into the "manifest" field of the NodeOnlineMessage
     // published by publishOnline(). Each project generates its own
@@ -95,6 +112,8 @@ private:
     MessageCallback _commandCallback;
     MessageCallback _orchestratorCallback;
     MessageCallback _configurationCallback;
+    std::function<void()> _connectedCallback;
+    std::vector<const char*> _capabilities;
     const char* _manifestJson = nullptr;
 
     void attemptConnect();

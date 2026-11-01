@@ -16,13 +16,15 @@ constexpr unsigned long MqttConnection::kMaxBackoffMs;
 
 namespace {
 
-void publishDocument(PubSubClient& client, const String& topic, const JsonDocument& doc, bool retained) {
+bool publishDocument(PubSubClient& client, const String& topic, const JsonDocument& doc, bool retained) {
     auto result = riot2::publishJson<MQTT_MAX_PACKET_SIZE>(client, topic.c_str(), doc, retained);
     if (result != riot2::JsonPublishResult::Published) {
         Serial.printf("[MQTT] JSON publish failed (reason=%u, bytes=%u, packetBuffer=%u)\n",
                       static_cast<unsigned>(result), static_cast<unsigned>(measureJson(doc)),
                       static_cast<unsigned>(client.getBufferSize()));
+        return false;
     }
+    return true;
 }
 
 // Splits "[scheme://]host[:port]" into host/port, defaulting the port to
@@ -147,10 +149,17 @@ void MqttConnection::attemptConnect() {
     _state = MqttState::Connected;
     _backoffMs = kInitialBackoffMs;
 
-    _client.subscribe(Topics::orchestratorOnline());
-    _client.subscribe(Topics::configuration(_config.id).c_str());
-    _client.subscribe(Topics::command(_config.id).c_str());
+    // QoS 1 (design 7.1): the broker redelivers a command lost on the way; the command's
+    // correlationId and the configuration hash make a redelivery harmless.
+    _client.subscribe(Topics::orchestratorOnline(), 1);
+    _client.subscribe(Topics::configuration(_config.id).c_str(), 1);
+    _client.subscribe(Topics::command(_config.id).c_str(), 1);
 
+    // Before the presence, as the .NET node does: an orchestrator that sees the node online
+    // already has its configuration status.
+    if (_connectedCallback) {
+        _connectedCallback();
+    }
     publishOnline();
 }
 
@@ -184,7 +193,30 @@ void MqttConnection::publishOnline() {
         }
     }
 
+    // Design 7.1/7.2: the orchestrator waits for command results and reads the status only from
+    // nodes that advertise them.
+    if (!_capabilities.empty()) {
+        JsonArray capabilities = doc["capabilities"].to<JsonArray>();
+        for (const char* capability : _capabilities) {
+            capabilities.add(capability);
+        }
+    }
+
     publishDocument(_client, Topics::online(_config.id), doc, true);
+}
+
+bool MqttConnection::publishJson(const String& topic, const JsonDocument& doc, bool retained) {
+    if (!_client.connected()) {
+        return false;
+    }
+    return publishDocument(_client, topic, doc, retained);
+}
+
+size_t MqttConnection::maxPayloadBytes(const String& topic) {
+    // PubSubClient's fixed header (5 bytes) and topic length (2 bytes); see riot2::publishJson().
+    size_t packet = _client.getBufferSize() < MQTT_MAX_PACKET_SIZE ? _client.getBufferSize() : MQTT_MAX_PACKET_SIZE;
+    size_t overhead = 7 + topic.length();
+    return packet > overhead ? packet - overhead : 0;
 }
 
 void MqttConnection::publishOfflineAndDisconnect() {

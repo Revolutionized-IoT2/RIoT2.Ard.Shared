@@ -54,4 +54,13 @@ int main() {
     assert(calls == before);
     retry.loop(true, fetch);
     assert(calls == before + 1 && received == "wrap");
+    // cancel(): the applied configuration is wanted again, so the pending fetch is dropped.
+    retry.request("dropped");
+    assert(retry.pending());
+    retry.cancel();
+    assert(!retry.pending());
+    before = calls;
+    nowMs += 60000;
+    retry.loop(true, fetch);
+    assert(calls == before);
 }

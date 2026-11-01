@@ -138,14 +138,18 @@ int main() {
     manager.rebuild(node);
     manager.enterFocused(0);
     timer(manager).onTouch(0, 0);
-    assert(manager.onCommand("popup-command", command("popup-command", 0)));
+    bool tookOver = false;
+    assert(manager.onCommand("popup-command", command("popup-command", 0), &tookOver) && tookOver);
     assert(manager.activeView()->isAlert());
+    // I19: a command a view owns is handled (the node answers `executed`) without a takeover too.
+    assert(manager.onCommand("popup-command", command("popup-command", 0), &tookOver) && !tookOver);
+    assert(!manager.onCommand("missing", command("missing", 0), &tookOver) && !tookOver);
     hostMillis += 60000;
     manager.loop();
     assert(reports.size() == 2 && manager.activeView()->isAlert()); // No forced navigation.
 
     manager.rebuild(node);
-    manager.onCommand("timer-command", command("timer-command", 0));
+    assert(manager.onCommand("timer-command", command("timer-command", 0), &tookOver) && !tookOver);
     assert(timer(manager)._model.minutes() == 1);
     manager.onCommand("timer-command", command("timer-command", 99));
     assert(timer(manager)._model.minutes() == 5);

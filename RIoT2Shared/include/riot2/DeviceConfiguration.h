@@ -6,7 +6,7 @@
 #include <vector>
 
 // In-memory model for the device configuration fetched from the RIoT2
-// Orchestrator (GET {apiBaseUrl}api/Nodes/{id}/configuration). Mirrors
+// Orchestrator (GET {apiBaseUrl}api/nodes/{id}/configuration). Mirrors
 // RIoT2.Core.Models (CommandTemplate, ReportTemplate, DeviceConfiguration).
 
 // Free-form string dictionary helper shared by ReportTemplate/DeviceConfiguration.
@@ -60,6 +60,9 @@ struct DeviceConfiguration {
 struct NodeConfiguration {
     String name;
     String id;
+    // Design 7.2: stamped by the orchestrator since 1.5.0; -1 and empty from an older one.
+    long revision = -1;
+    String hash;
 
     // Both on-screen Views and non-visual Grove-port peripherals (see
     // IPeripheral/PeripheralManager) live in this same list, distinguished

@@ -10,7 +10,7 @@
 //
 // Given an apiBaseUrl (received on riot2/node/{id}/configuration, after the
 // node has re-announced itself in response to riot2/orchestrator/online),
-// fetches and parses {apiBaseUrl}api/Nodes/{id}/configuration into an
+// fetches and parses {apiBaseUrl}api/nodes/{id}/configuration into an
 // in-memory NodeConfiguration, and notifies a callback so the rest of the
 // app can rebuild itself from the new configuration without a full reboot.
 // On success, also caches the raw response body via ConfigCache::save() so
@@ -69,7 +69,14 @@ public:
     // once from an unchanged live fetch) measured free heap dropping from
     // ~25KB to ~6KB, right at the edge of allocation failures elsewhere
     // (BLE/TLS/LVGL).
+    //
+    // Sends If-None-Match with the current configuration's hash (design 7.2);
+    // a 304 counts as an unchanged configuration.
     bool requestConfiguration(const String& apiBaseUrl, const String& nodeId);
+
+    // Why the last requestConfiguration() returned false, for the node's
+    // status; empty after a success.
+    const String& lastError() const { return _lastError; }
 
 private:
     static constexpr uint32_t kHttpTimeoutMs = 8000;
@@ -78,6 +85,7 @@ private:
     ConfigurationCallback _callback;
     NodeConfiguration _current;
     String _lastAppliedJson;
+    String _lastError;
 
     bool parseConfiguration(const String& json, NodeConfiguration& out);
 };

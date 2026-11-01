@@ -12,6 +12,14 @@ public:
         _backoffMs = 1000;
     }
 
+    // A newer notification says the applied configuration is the desired one.
+    void cancel() {
+        _pending = false;
+        _waiting = false;
+    }
+
+    bool pending() const { return _pending; }
+
     template <typename Fetch>
     void loop(bool connected, Fetch fetch) {
         if (!_pending || !connected) return;

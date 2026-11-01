@@ -2,8 +2,10 @@
 
 #include <Arduino.h>
 
+#include <functional>
+
 // OTA firmware update over HTTP(S), triggered by a reserved MQTT command
-// (main.cpp's handleCommand - command.id == "system.ota"). This is a
+// (NodeRuntime::handleCommand - command.id == "system.ota"). This is a
 // RIoT2 Ard node-specific extension, not part of the RIoT2.Core
 // Command/Report contract: the orchestrator (or an operator) publishes
 // { "id": "system.ota", "value": "http://host/firmware.bin" } to this
@@ -14,10 +16,11 @@ namespace OtaUpdater {
 // validated against riot2::rootCaPem() when configured, otherwise a warning
 // is logged before falling back to an insecure TLS connection. Blocks for the
 // duration of the download/flash (no MQTT/UI servicing meanwhile). On
-// success the device reboots automatically and this function never returns;
+// success it calls onInstalled (e.g. to publish the command result), then
+// reboots, and never returns;
 // on failure it returns false and the current firmware keeps running. The new
 // image then starts on trial (see OtaRollback.h). While the running image is
 // itself still on trial, the update is refused and this returns false.
-bool performUpdate(const String& url);
+bool performUpdate(const String& url, const std::function<void()>& onInstalled = nullptr);
 
 }  // namespace OtaUpdater

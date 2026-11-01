@@ -25,8 +25,8 @@ inline String configuration(const String& nodeId) {
     return "riot2/node/" + nodeId + "/configuration";
 }
 
-// Reserved by RIoT2.Core 1.6.0 for command results (design 7.1) and the retained configuration
-// status (design 7.2). The firmware publishes on them once it supports those features.
+// Command results (design 7.1) and the retained configuration status (design 7.2), published by
+// NodeRuntime since firmware 0.5.0.
 inline String commandResult(const String& nodeId) {
     return "riot2/node/" + nodeId + "/command/result";
 }

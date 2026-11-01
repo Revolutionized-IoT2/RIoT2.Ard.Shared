@@ -51,6 +51,7 @@ class FirmwareP2Tests(unittest.TestCase):
         runtime = (SHARED / "src" / "NodeRuntime.cpp").read_text(encoding="utf-8")
         self.assertIn("_configurationRetry.request(apiBaseUrl);", runtime)
         self.assertIn("_configurationRetry.loop(_wifi.isConnected()", runtime)
+        self.assertIn("_configurationRetry.cancel();", runtime)
         for root in (CORE, DIAL):
             self.assertNotIn("ConfigurationRetry", (root / "src" / "main.cpp").read_text(encoding="utf-8"), root.name)
         compile_and_run("configuration_retry", source)
@@ -95,8 +96,9 @@ class FirmwareP2Tests(unittest.TestCase):
         source = source.replace("// PRODUCTION_HELPER",
                                 declaration(SHARED / "include" / "riot2" / "MqttJson.h"))
         cpp = SHARED / "src" / "MqttConnection.cpp"
-        signatures = ["void publishDocument(", "void MqttConnection::publishOnline()",
-                      "void MqttConnection::publishReport(", "void MqttConnection::publishOfflineAndDisconnect()"]
+        signatures = ["bool publishDocument(", "void MqttConnection::publishOnline()",
+                      "void MqttConnection::publishReport(", "void MqttConnection::publishOfflineAndDisconnect()",
+                      "bool MqttConnection::publishJson(", "size_t MqttConnection::maxPayloadBytes("]
         source = source.replace("// PRODUCTION_METHODS", "\n".join(body(cpp, s) for s in signatures))
         compile_and_run("mqtt_json", source, [headers[0].parent])
 

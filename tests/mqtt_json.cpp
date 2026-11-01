@@ -3,6 +3,7 @@
 #include <cstring>
 #include <ctime>
 #include <string>
+#include <vector>
 #include <ArduinoJson.h>
 #define MQTT_MAX_PACKET_SIZE 512
 using String = std::string;
@@ -47,11 +48,14 @@ struct MqttConnection {
     struct Config { String id = "00000000-0000-0000-0000-000000000000", name = "Node"; } _config;
     const char* _manifestJson =
         R"({"name":"RIoT2 M5Core2 Node","version":"0.1.0","date":"2026-09-23T00:00:00","installedPackageFilename":"firmware.bin"})";
+    std::vector<const char*> _capabilities;
     PubSubClient _client;
     MqttState _state = MqttState::Connected;
     void publishOnline();
     void publishReport(const Report&);
     void publishOfflineAndDisconnect();
+    bool publishJson(const String& topic, const JsonDocument& doc, bool retained);
+    size_t maxPayloadBytes(const String& topic);
 };
 // PRODUCTION_METHODS
 int main() {
@@ -65,6 +69,24 @@ int main() {
     mqtt._config.name += 'N';
     mqtt.publishOnline();
     assert(mqtt._client.calls == 1 && Serial.errors == 1); // 452 bytes rejected whole.
+    // Design 7.1/7.2: the capabilities, as RIoT2.Core's NodeOnlineMessage has them.
+    mqtt._config.name = "Node";
+    mqtt._capabilities = {"command-result/1", "desired-state/1"};
+    mqtt.publishOnline();
+    assert(mqtt._client.calls == 2 && !deserializeJson(parsed, mqtt._client.payload));
+    assert(parsed["capabilities"].size() == 2 && parsed["capabilities"][0] == "command-result/1" &&
+           parsed["capabilities"][1] == "desired-state/1");
+    mqtt._client.calls = 1;
+    JsonDocument status;
+    status["state"] = "applied";
+    String statusTopic = "riot2/node/" + mqtt._config.id + "/status";
+    assert(mqtt.maxPayloadBytes(statusTopic) == 512 - 7 - statusTopic.size());
+    assert(mqtt.publishJson(statusTopic, status, true) && mqtt._client.retained &&
+           mqtt._client.payload == "{\"state\":\"applied\"}");
+    mqtt._client.connectedValue = false;
+    assert(!mqtt.publishJson(statusTopic, status, true) && mqtt._client.calls == 2);
+    mqtt._client.connectedValue = true;
+    mqtt._client.calls = 1;
     JsonDocument value;
     value["address"] = "AA:BB:CC:DD:EE:FF";
     value["name"] = String(29, '"');

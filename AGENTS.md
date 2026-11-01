@@ -31,6 +31,7 @@ python .\tests\test_firmware_p1.py
 python .\tests\test_firmware_p2.py
 python .\tests\test_firmware_architecture.py
 python .\tests\test_golden_messages.py
+python .\tests\test_desired_state.py
 python .\tests\test_view_models.py
 ```
 
@@ -38,7 +39,9 @@ python .\tests\test_view_models.py
 - Test: the Python tests compile selected production code with host fakes; the MQTT and golden
   tests need ArduinoJson headers already present under a board's `.pio\libdeps`. The golden test
   reads `../RIoT2.Core/contracts/golden` (CI clones RIoT2.Core) and pins the numeric template
-  `type` in the parser and in `DeviceConfigurationJson.cpp`.
+  `type` in the parser and in `DeviceConfigurationJson.cpp`. The golden and desired-state tests
+  run `NodeRuntime`'s handlers against `tests/runtime_harness.h`; a new member those handlers use
+  needs a stand-in there.
 - Run: no local service or device run command exists here.
 - CI: `.github/workflows/ci.yml` builds M5Core2, M5Dial and WiegandI2C against this checkout and
   runs the native tests with `g++` on every push ([CI guide](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/guides/ci.md)). The tests must also pass with
@@ -52,9 +55,11 @@ python .\tests\test_view_models.py
 | `RIoT2Shared/include/riot2/Topics.h` | Firmware copy of RIoT2 MQTT topic templates |
 | `RIoT2Shared/include/riot2/DeviceConfiguration.h` | Firmware subset of node configuration and templates |
 | `RIoT2Shared/include/riot2/NodeConfig.h`, `src/NodeConfig.cpp` | NVS-backed node id, Wi-Fi, MQTT and feedback settings |
-| `RIoT2Shared/include/riot2/NodeRuntime.h`, `src/NodeRuntime.cpp` | The node lifecycle both boards run: NVS settings, provisioning, Wi-Fi, MQTT handshake, configuration fetch and retry, templates, SNTP, OTA, peripherals, BLE start |
-| `RIoT2Shared/include/riot2/MqttConnection.h`, `src/MqttConnection.cpp` | PubSubClient lifecycle, online/LWT messages, command/report routing |
-| `RIoT2Shared/include/riot2/OrchestratorClient.h`, `src/OrchestratorClient.cpp` | Blocking configuration fetch and parser |
+| `RIoT2Shared/include/riot2/NodeRuntime.h`, `src/NodeRuntime.cpp` | The node lifecycle both boards run: NVS settings, provisioning, Wi-Fi, MQTT handshake, configuration fetch and retry, templates, SNTP, OTA, peripherals, BLE start, command results and the configuration status |
+| `RIoT2Shared/include/riot2/CommandResults.h`, `src/CommandResults.cpp` | Capabilities, `CommandResult` statuses and writer, the 16-entry `CorrelationRing` (design 7.1) |
+| `RIoT2Shared/include/riot2/NodeStatus.h`, `src/NodeStatus.cpp` | The compact retained `NodeStatusMessage` (design 7.2) |
+| `RIoT2Shared/include/riot2/MqttConnection.h`, `src/MqttConnection.cpp` | PubSubClient lifecycle, online/LWT messages with capabilities, QoS 1 subscriptions, command/report routing, `publishJson` |
+| `RIoT2Shared/include/riot2/OrchestratorClient.h`, `src/OrchestratorClient.cpp` | Blocking configuration fetch (`If-None-Match`) and parser |
 | `RIoT2Shared/include/riot2/ProvisioningPortal.h`, `src/ProvisioningPortal.cpp` | SoftAP captive portal (`GET /`, `POST /save`) |
 | `RIoT2Shared/include/riot2/ConfigTemplateServer.h`, `src/ConfigTemplateServer.cpp` | `GET /api/device/configuration/templates` |
 | `RIoT2Shared/include/riot2/OtaUpdater.h`, `src/OtaUpdater.cpp` | `system.ota` firmware download and flash |
@@ -63,7 +68,7 @@ python .\tests\test_view_models.py
 | `RIoT2Shared/include/riot2/GpioPeripheral.h`, `src/GpioPeripheral.cpp` | Shared Grove GPIO peripheral |
 | `RIoT2Shared/include/riot2/views/`, `src/views/` | `riot2::views` models of the shared view types, `ViewSupport` helpers (slot pairing, command values, report literals, templates) |
 | `scripts/generate_manifest.py` | PlatformIO pre-build manifest generation |
-| `tests/` | Host regression harness and fixtures; `tests/views/*_test.cpp` test the view models, `tests/host/Arduino.h` is their `Arduino.h` |
+| `tests/` | Host regression harness and fixtures; `tests/views/*_test.cpp` test the view models, `tests/host/Arduino.h` is their `Arduino.h`, `tests/runtime_harness.h` stands in for `NodeRuntime`'s members |
 
 ## Contracts implemented here
 
@@ -108,9 +113,18 @@ python .\tests\test_view_models.py
 ## Pitfalls
 
 - Firmware publishes retained online/offline/LWT messages, as the .NET node does since Core 1.8.0
-  (divergence D1, fixed in I16), but delivery is still QoS 0 through PubSubClient.
-- `OrchestratorClient` fetches `{apiBaseUrl}api/Nodes/{id}/configuration` with a capital `Nodes`.
-  That works but is listed as divergence D5.
+  (divergence D1, fixed in I16). PubSubClient publishes at QoS 0 only, so reports, results and the
+  status can be lost on a dropped connection; subscriptions are QoS 1 (I19).
+- Command handlers run inside PubSubClient's callback. Publishing from there (results, status) is
+  fine, but blocking there (an HTTP fetch) starves the keepalive: request work and do it in `loop()`,
+  as `ConfigurationRetry` does. `system.ota` is the one deliberate exception.
+- The `onCommand` hook must return true when a view has the command id; returning false makes a
+  correlated command `unknownCommand`.
+- The applied configuration hash lives in memory only (no `ConfigCache` in `NodeRuntime`), so a
+  restarted node fetches once. Firmware treats failed devices (unknown classes) as applied, unlike
+  the .NET node, because fetching again can't fix them.
+- The status must fit `MQTT_MAX_PACKET_SIZE` (512): `NodeStatus::write` drops failed devices
+  beyond four and while it is too long. Keep new status fields small.
 - Configuration responses are capped at 32 KiB. Fetch retries are scheduled in the main loop after
   1, 2, 4, 8, 16 and then 30 seconds.
 - HTTPS MQTT, configuration and OTA use `RIOT2_ROOT_CA_PEM` when compiled in. Without it the code

@@ -18,7 +18,7 @@ String buildConfigurationUrl(const String& apiBaseUrl, const String& nodeId) {
     if (!base.endsWith("/")) {
         base += "/";
     }
-    return base + "api/Nodes/" + nodeId + "/configuration";
+    return base + "api/nodes/" + nodeId + "/configuration";
 }
 
 bool readConfigurationBody(HTTPClient& http, String& body) {
@@ -152,12 +152,26 @@ bool OrchestratorClient::requestConfiguration(const String& apiBaseUrl, const St
 
     if (!began) {
         Serial.println("[Orchestrator] Failed to start HTTP request");
+        _lastError = "GET " + url + " could not start";
         return false;
     }
 
+    // Design 7.2: the ETag is the configuration hash, so the configuration this node runs costs a 304.
+    if (_current.hash.length() > 0) {
+        http.addHeader("If-None-Match", "\"" + _current.hash + "\"");
+    }
+
     int statusCode = http.GET();
+    if (statusCode == HTTP_CODE_NOT_MODIFIED) {
+        http.end();
+        Serial.println("[Orchestrator] Configuration not modified (304), skipping rebuild");
+        _lastError = String();
+        return true;
+    }
     if (statusCode != HTTP_CODE_OK) {
         Serial.printf("[Orchestrator] GET failed, status=%d\n", statusCode);
+        _lastError = "GET " + url + " failed: " +
+                     (statusCode > 0 ? String(statusCode) : HTTPClient::errorToString(statusCode));
         http.end();
         return false;
     }
@@ -165,6 +179,7 @@ bool OrchestratorClient::requestConfiguration(const String& apiBaseUrl, const St
     String body;
     if (!readConfigurationBody(http, body)) {
         http.end();
+        _lastError = "GET " + url + " failed: the response could not be read";
         return false;
     }
     http.end();
@@ -180,19 +195,22 @@ bool OrchestratorClient::requestConfiguration(const String& apiBaseUrl, const St
     // ViewManager rebuild (tear down + recreate every view's LVGL widgets)
     // for no actual change - measured to spike free heap from ~25KB down to
     // ~6KB on a 13-view configuration when it happened twice back-to-back.
-    if (body == _lastAppliedJson) {
+    if (_lastAppliedJson.length() > 0 && body == _lastAppliedJson) {
         Serial.println("[Orchestrator] Fetched configuration is unchanged, skipping rebuild");
+        _lastError = String();
         return true;
     }
 
     NodeConfiguration parsed;
     if (!parseConfiguration(body, parsed)) {
         Serial.println("[Orchestrator] Failed to parse configuration JSON");
+        _lastError = "The configuration from " + url + " is not valid JSON";
         return false;
     }
 
     _current = parsed;
     _lastAppliedJson = body;
+    _lastError = String();
     Serial.printf("[Orchestrator] Configuration updated: %u device configuration(s)\n",
                   static_cast<unsigned>(_current.deviceConfigurations.size()));
 
@@ -213,6 +231,8 @@ bool OrchestratorClient::parseConfiguration(const String& json, NodeConfiguratio
 
     out.name = doc["name"] | "";
     out.id = doc["id"] | "";
+    out.revision = doc["revision"] | -1L;
+    out.hash = doc["hash"] | "";
     out.deviceConfigurations.clear();
 
     // Both on-screen Views and non-visual Grove-port peripherals (see

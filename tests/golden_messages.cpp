@@ -1,22 +1,9 @@
-// Golden-file contract test (I05, plan M7 step 3): NodeRuntime's real MQTT handlers (both boards
-// use them since I18) and OrchestratorClient::parseConfiguration read the golden files from
-// RIoT2.Core/contracts/golden.
+// Golden-file contract test (I05, plan M7 step 3; I19): NodeRuntime's real MQTT handlers (both
+// boards use them since I18), OrchestratorClient::parseConfiguration, the command results and the
+// configuration status read and write the golden files in RIoT2.Core/contracts/golden.
 // test_golden_messages.py injects the production code and the golden JSON, runs this program and
 // compares its output with what Python's json module reads from the same files.
-#include <cassert>
-#include <cstdio>
-#include <functional>
-#include <string>
-#include <utility>
-#include <vector>
-#include <ArduinoJson.h>
-using String = std::string;
-struct Log {
-    template<typename... Args> void printf(const char*, Args...) {}
-    void println(const char*) {}
-} Serial;
-// PRODUCTION_CONFIGURATION_TYPES
-// PRODUCTION_COMMAND_TYPE
+// RUNTIME_HARNESS
 struct OrchestratorClient {
     bool parseConfiguration(const String& json, NodeConfiguration& out);
 };
@@ -25,49 +12,33 @@ namespace riot2 {
 String serializeDeviceConfigurations(const std::vector<DeviceConfiguration>& configs);
 }
 // PRODUCTION_SERIALIZE_CONFIGURATIONS
-
-// The NodeRuntime members the handlers use.
-const char* const kOtaCommandId = "system.ota";
-namespace OtaUpdater { bool performUpdate(const String&) { return true; } }
-struct Router {
-    unsigned calls = 0;
-    String id, value;
-    bool onCommand(const String& commandId, const Command& command) {
-        ++calls;
-        id = commandId;
-        value.clear();
-        serializeJson(command.value, value);
-        return false;
-    }
-};
-struct Hooks {
-    std::function<void(const Command&)> onCommand;
-    std::function<void()> onConfigurationRequested;
-    std::function<void(const String&)> onOtaStarted;
-    std::function<void()> onOtaFailed;
-};
-struct Retry { String url; void request(const String& apiBaseUrl) { url = apiBaseUrl; } };
-struct NodeRuntime {
-    Hooks _hooks;
-    Router _peripherals;
-    Retry _configurationRetry;
-    void handleCommand(const String& topic, const String& payload);
-    void handleConfigurationMessage(const String& topic, const String& payload);
-};
-// PRODUCTION_HANDLERS
 // GOLDEN_DATA
 
 String parameters(const ParameterList& list) {
     String text;
-    for (const auto& kv : list) text += (text.empty() ? "" : ",") + kv.first + "=" + kv.second;
+    for (const auto& kv : list) text = text + (text.empty() ? "" : ",") + kv.first + "=" + kv.second;
     return text;
 }
 
+struct Views {
+    unsigned calls = 0;
+    String id, value;
+    bool handles = false;
+    bool onCommand(const Command& command) {
+        ++calls;
+        id = command.id;
+        std::string text;
+        serializeJson(command.value, text);
+        value = String(text);
+        return handles;
+    }
+};
+
 int main() {
-    NodeRuntime runtime;
-    Router views;
+    riot2::NodeRuntime runtime;
+    Views views;
     unsigned requested = 0;
-    runtime._hooks.onCommand = [&](const Command& command) { views.onCommand(command.id, command); };
+    runtime._hooks.onCommand = [&](const Command& command) { return views.onCommand(command); };
     runtime._hooks.onConfigurationRequested = [&] { ++requested; };
     for (const auto& golden : kGoldenCommands) {
         views.calls = runtime._peripherals.calls = 0;
@@ -75,15 +46,20 @@ int main() {
         assert(views.calls == 1 && runtime._peripherals.calls == 1);
         std::printf("command|%s|%s\n", views.id.c_str(), views.value.c_str());
     }
+    // Commands without a correlationId (an orchestrator before 1.4.0) get no result.
+    assert(runtime._mqtt.published.empty());
 
     runtime.handleConfigurationMessage("riot2/node/golden/configuration", kGoldenConfigurationCommand);
     assert(requested == 1);
-    std::printf("configuration|%s\n", runtime._configurationRetry.url.c_str());
+    std::printf("configuration|%s\n", runtime._pendingHash.empty() ? "" : "unexpected hash");
+    runtime.handleConfigurationMessage("riot2/node/golden/configuration", kGoldenConfigurationCommandHash);
+    assert(requested == 2 && runtime._configurationRetry.pending());
+    std::printf("configuration-hash|%s\n", runtime._pendingHash.c_str());
 
     OrchestratorClient client;
     NodeConfiguration node;
     assert(client.parseConfiguration(kGoldenNodeConfiguration, node));
-    std::printf("node|%s|%s\n", node.id.c_str(), node.name.c_str());
+    std::printf("node|%s|%s|%ld|%s\n", node.id.c_str(), node.name.c_str(), node.revision, node.hash.c_str());
     for (const auto& device : node.deviceConfigurations) {
         std::printf("device|%s|%s|%s|%s\n", device.id.c_str(), device.name.c_str(),
                     device.classFullName.c_str(), parameters(device.deviceParameters).c_str());
@@ -112,4 +88,32 @@ int main() {
         assert(c == parsed.commandTemplates.size() && r == parsed.reportTemplates.size());
     }
     assert(d == node.deviceConfigurations.size());
+
+    // Design 7.2: the hashed configuration (orchestrator 1.5.0 and later) is fetched, applied and
+    // reported in the status.
+    NodeConfiguration hashed;
+    assert(client.parseConfiguration(kGoldenNodeConfigurationHash, hashed));
+    std::printf("node-hash|%ld|%s\n", hashed.revision, hashed.hash.c_str());
+    runtime._orchestrator.configuration = hashed;
+    runtime._failedDevices = {{"golden-device", "Port COM3 not found"}};
+    runtime.runFetch([](const String&) { return true; });
+    std::printf("status|%s\n", runtime._mqtt.published.back().payload.c_str());
+    assert(runtime._mqtt.published.back().topic == "riot2/node/golden/status" && runtime._mqtt.published.back().retained);
+    runtime._configurationRetry.request("http://192.0.2.1:5000/");
+    runtime._orchestrator.error = "GET http://192.0.2.1:5000/api/nodes/golden/configuration failed: 503";
+    runtime.runFetch([](const String&) { return false; });
+    std::printf("status-failed|%s\n", runtime._mqtt.published.back().payload.c_str());
+    // While a fetch is pending an unknown command is `rejected`; the checks below want none pending.
+    runtime._configurationRetry.cancel();
+
+    // Design 7.1: a correlated command gets a result.
+    views.handles = true;
+    runtime.handleCommand("riot2/node/golden/command", kGoldenCorrelatedCommand);
+    assert(runtime._mqtt.published.back().topic == "riot2/node/golden/command/result" &&
+           !runtime._mqtt.published.back().retained);
+    std::printf("result|%s\n", runtime._mqtt.published.back().payload.c_str());
+    views.handles = false;
+    runtime.handleCommand("riot2/node/golden/command",
+                          R"({"id":"golden-command-number","value":1,"correlationId":"golden-correlation-2"})");
+    std::printf("result-unknown|%s\n", runtime._mqtt.published.back().payload.c_str());
 }

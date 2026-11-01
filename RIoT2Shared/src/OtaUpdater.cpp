@@ -7,7 +7,7 @@
 #include <riot2/OtaRollback.h>
 #include <riot2/TlsRootCa.h>
 
-bool OtaUpdater::performUpdate(const String& url) {
+bool OtaUpdater::performUpdate(const String& url, const std::function<void()>& onInstalled) {
     if (OtaRollback::isPendingVerify()) {
         // The other slot holds the previous, known-good image: the one a rollback returns to.
         // Writing over it before this image has proved itself would leave nothing to go back to.
@@ -22,7 +22,8 @@ bool OtaUpdater::performUpdate(const String& url) {
 
     Serial.printf("[OTA] Starting update from %s\n", url.c_str());
 
-    httpUpdate.rebootOnUpdate(true);  // reboots automatically on HTTP_UPDATE_OK
+    // The restart happens below, after onInstalled has reported the result.
+    httpUpdate.rebootOnUpdate(false);
 
     WiFiClientSecure secureClient;
     WiFiClient plainClient;
@@ -44,8 +45,13 @@ bool OtaUpdater::performUpdate(const String& url) {
 
     switch (result) {
         case HTTP_UPDATE_OK:
-            // ESP.restart() already happened inside httpUpdate.update(); unreachable.
-            return true;
+            Serial.println("[OTA] Update installed, restarting");
+            if (onInstalled) {
+                onInstalled();
+            }
+            delay(100);
+            ESP.restart();
+            return true;  // unreachable
         case HTTP_UPDATE_NO_UPDATES:
             Serial.println("[OTA] Server reported no update available");
             return false;
