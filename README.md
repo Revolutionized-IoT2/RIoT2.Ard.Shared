@@ -89,7 +89,7 @@ runtime:
 - Settings are saved in ESP32 NVS namespace `riot2node` by the provisioning portal (`GET /`,
   `POST /save`).
 - MQTT topics are centralized in `RIoT2Shared/include/riot2/Topics.h`, mirroring
-  `RIoT2.Core/Constants.cs`.
+  `RIoT2.Core/src/Contracts/Constants.cs`.
 - Firmware publishes retained online/offline messages and retained last wills through
   PubSubClient, which publishes at QoS 0 only. It subscribes to its command, configuration and
   `riot2/orchestrator/online` topics at QoS 1. The online message advertises the capabilities

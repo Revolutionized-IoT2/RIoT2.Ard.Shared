@@ -91,7 +91,7 @@ python .\tests\test_view_models.py
   need more), `millis()`, ArduinoJson and the standard library; never `JsonVariant::as<String>()`
   (use `commandText`) or board, LVGL, M5 or sound APIs.
 - A change here is done only when both `RIoT2.Ard.M5Core2.Node` and `RIoT2.Ard.M5Dial.Node` build.
-- Keep firmware MQTT topics mirrored from `RIoT2.Core/Constants.cs`; update hub contracts when a
+- Keep firmware MQTT topics mirrored from `RIoT2.Core/src/Contracts/Constants.cs`; update hub contracts when a
   cross-repository contract changes.
 - Do not assign `system.ota` to a view command template; it is reserved for firmware OTA.
 - Lifecycle code (Wi-Fi, MQTT, configuration, OTA, peripherals, BLE start) goes in `NodeRuntime`;
