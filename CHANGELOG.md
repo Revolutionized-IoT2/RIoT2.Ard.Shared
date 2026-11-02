@@ -4,6 +4,8 @@ All notable documentation changes to `RIoT2.Ard.Shared`.
 
 ## [Unreleased]
 
+- Build: `renovate.json` extends the shared Renovate preset ([I33](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i33-supply-chain-s)). Renovate opens grouped
+  update pull requests once the app is installed (MA7).
 - Added command results and the configuration status ([I19](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i19-firmware-results-and-desired-state-m), designs 7.1 phase 3 and 7.2 phase 5),
   released with M5Core2 and M5Dial `0.5.0`:
   - `NodeRuntime` advertises `command-result/1` and `desired-state/1`, answers every command with
