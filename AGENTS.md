@@ -66,6 +66,7 @@ python .\tests\test_view_models.py
 | `RIoT2Shared/include/riot2/OtaRollback.h`, `src/OtaRollback.cpp` | Trial of a new OTA image: marks it valid after the first configuration fetch, or rolls it back on a deadline |
 | `RIoT2Shared/include/riot2/BleScanner.h`, `src/BleScanner.cpp` | Shared BLE scanner and callbacks |
 | `RIoT2Shared/include/riot2/GpioPeripheral.h`, `src/GpioPeripheral.cpp` | Shared Grove GPIO peripheral |
+| `RIoT2Shared/include/riot2/WiegandI2CPeripheral.h`, `src/WiegandI2CPeripheral.cpp` | The WiegandI2C module on Grove PORT.A (I2C, optional IRQ); `tests/wiegand_peripheral.cpp` runs it against the module's own sketch |
 | `RIoT2Shared/include/riot2/views/`, `src/views/` | `riot2::views` models of the shared view types, `ViewSupport` helpers (slot pairing, command values, report literals, templates) |
 | `scripts/generate_manifest.py` | PlatformIO pre-build manifest generation |
 | `tests/` | Host regression harness and fixtures; `tests/views/*_test.cpp` test the view models, `tests/host/Arduino.h` is their `Arduino.h`, `tests/runtime_harness.h` stands in for `NodeRuntime`'s members |
@@ -146,4 +147,4 @@ python .\tests\test_view_models.py
 - Plan [M5](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/plans/m05-firmware-node-runtime.md):
   shared firmware view logic and node runtime.
 - [Feature ideas](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/features.md#firmware):
-  Wiegand peripheral integration and OTA channel improvements.
+  OTA channel improvements (the Wiegand peripheral is done, I42).

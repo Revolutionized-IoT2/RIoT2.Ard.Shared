@@ -43,6 +43,28 @@ class FirmwareP2Tests(unittest.TestCase):
         source = source.replace("// PRODUCTION_SKETCH", declaration(WIEGAND / "WiegandI2C.ino"))
         compile_and_run("wiegand_frames", source)
 
+    def test_wiegand_peripheral_reads_the_module(self):
+        # Plan M5 step 4: the shared peripheral against the module's sketch, on both boards' pin maps.
+        source = (Path(__file__).parent / "wiegand_peripheral.cpp").read_text(encoding="utf-8")
+        source = source.replace("// PRODUCTION_SKETCH", declaration(WIEGAND / "WiegandI2C.ino"))
+        source = source.replace("// PRODUCTION_PIN_MAP", declaration(SHARED / "include" / "riot2" / "GpioPeripheral.h"))
+        source = source.replace("// PRODUCTION_CLASS",
+                                declaration(SHARED / "include" / "riot2" / "WiegandI2CPeripheral.h"))
+        source = source.replace("// PRODUCTION_METHODS",
+                                declaration(SHARED / "src" / "WiegandI2CPeripheral.cpp"))
+        maps = []
+        for root, board, name in [(CORE, "M5Core2", "kM5Core2GroveMap"), (DIAL, "M5Dial", "kM5DialGroveMap")]:
+            text = (root / "src" / "BoardPeripherals.cpp").read_text(encoding="utf-8")
+            start = text.index("constexpr GpioPinMap " + name)
+            maps.append(text[start:text.index(";", start) + 1])
+            registration = f'"RIoT2.Ard.{board}.Node.WiegandI2CPeripheral", [] {{ return std::make_unique<WiegandI2CPeripheral>({name}); }}'
+            self.assertIn(registration, text, f"{board} registers the Wiegand peripheral")
+            template = text[text.index(registration):]
+            template = template[:template.index("return config;")]
+            self.assertIn("report.type = riot2::ValueType::Text;", template)
+        source = source.replace("// PRODUCTION_MAPS", "\n".join(maps))
+        compile_and_run("wiegand_peripheral", source)
+
     def test_configuration_retry(self):
         source = (Path(__file__).parent / "configuration_retry.cpp").read_text(encoding="utf-8")
         source = source.replace("// PRODUCTION_CLASS",

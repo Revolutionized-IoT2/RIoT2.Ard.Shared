@@ -14,7 +14,7 @@ project's `platformio.ini`.
 
 | Path | Contents |
 |---|---|
-| `RIoT2Shared/include/riot2/` | Shared public headers for Wi-Fi, MQTT, provisioning, configuration, OTA, BLE, GPIO peripherals and wire models |
+| `RIoT2Shared/include/riot2/` | Shared public headers for Wi-Fi, MQTT, provisioning, configuration, OTA, BLE, GPIO and Wiegand peripherals and wire models |
 | `RIoT2Shared/include/riot2/views/`, `src/views/` | View models: the display-independent logic of the twelve views both boards have (Alert, BLE, Button, Clock, ColorScheme, Notification, Percentage, SceneSelector, Slider, Timer, Toggle, Value) and their default templates |
 | `RIoT2Shared/src/` | Implementations compiled into each consuming PlatformIO project |
 | `scripts/generate_manifest.py` | PlatformIO pre-build script that generates each board's embedded manifest |
@@ -118,6 +118,12 @@ runtime:
   `system.ota` is refused.
 - Grove peripherals registered with `PeripheralFactory` get every command and configuration; the
   BLE scanner starts once a configuration has a BLE-consuming view, with Wi-Fi modem sleep on.
+- `WiegandI2CPeripheral` ({I42}) reads a
+  [RIoT2.Ard.WiegandI2C](https://github.com/Revolutionized-IoT2/RIoT2.Ard.WiegandI2C) module on
+  Grove PORT.A (A1 SDA, A2 SCL, I2C `0x26`) and publishes every card code as a text report.
+  Parameters: `address`, `irq` (`B1` or `B2`: read only while the module's IRQ is high, and report
+  the code 0 too; empty: poll every 100 ms) and `format` (`hex` `12AB3F`, `decimal` `1223487`,
+  `facility` `18:43839`). Both boards register it.
 - Command and report templates carry `type`, RIoT2.Core's `ValueType`, as a number
   (`riot2::ValueType`), both when parsed from the orchestrator and when served to it.
 - `ConfigTemplateServer` serves `GET /api/device/configuration/templates` so the orchestrator can

@@ -4,6 +4,11 @@ All notable documentation changes to `RIoT2.Ard.Shared`.
 
 ## [Unreleased]
 
+- Added `WiegandI2CPeripheral` ([I42](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-3-4.md#i42-wiegand-peripheral-s), plan M5 step 4), released with M5Core2 and M5Dial `0.6.0`:
+  it reads the RIoT2.Ard.WiegandI2C module over I2C on Grove PORT.A and publishes each card code as
+  a text report, with an optional IRQ pin and the formats `hex`, `decimal` and `facility`. Test:
+  `tests/wiegand_peripheral.cpp` (in `test_firmware_p2.py`) answers the peripheral's reads with the
+  module's production sketch on both boards' pin maps.
 - Build: `renovate.json` extends the shared Renovate preset ([I33](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i33-supply-chain-s)). Renovate opens grouped
   update pull requests once the app is installed (MA7).
 - Added command results and the configuration status ([I19](https://github.com/Revolutionized-IoT2/.github/blob/main/docs/increments/phase-2.md#i19-firmware-results-and-desired-state-m), designs 7.1 phase 3 and 7.2 phase 5),
